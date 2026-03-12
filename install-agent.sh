@@ -205,16 +205,34 @@ prompt() {
     local default="$2"
     local var_name="$3"
 
+    # 如果环境变量已设置，直接使用
     if [[ -n "${!var_name:-}" ]]; then
-        # 环境变量已设置，直接使用
         eval "$var_name=\${!var_name}"
         return 0
     fi
 
-    if [[ -n "$default" ]]; then
-        read -p "$prompt_text [$default]: " -r
+    # 管道模式时从 /dev/tty 读取，否则从 stdin 读取
+    if [[ -t 0 ]]; then
+        # 交互模式（终端）
+        if [[ -n "$default" ]]; then
+            read -p "$prompt_text [$default]: " -r
+        else
+            read -p "$prompt_text: " -r
+        fi
     else
-        read -p "$prompt_text: " -r
+        # 管道模式，尝试从 /dev/tty 读取
+        if [[ -t 1 ]] && [[ -c /dev/tty ]]; then
+            if [[ -n "$default" ]]; then
+                read -p "$prompt_text [$default]: " -r </dev/tty
+            else
+                read -p "$prompt_text: " -r </dev/tty
+            fi
+        else
+            # 无法交互，要求使用环境变量
+            echo -e "${ERROR}错误: 管道模式需要通过环境变量传递参数${NC}"
+            echo "用法: AGENT_ID=myagent AGENT_NAME=MyAgent curl -fsSL ... | bash"
+            exit 1
+        fi
     fi
 
     [[ -n "$REPLY" ]] && eval "$var_name=\$REPLY" || eval "$var_name=\$default"
