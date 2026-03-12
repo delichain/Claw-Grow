@@ -206,7 +206,9 @@ prompt() {
     local var_name="$3"
 
     if [[ -n "${!var_name:-}" ]]; then
-        return 0  # 环境变量已设置
+        # 环境变量已设置，直接使用
+        eval "$var_name=\${!var_name}"
+        return 0
     fi
 
     if [[ -n "$default" ]]; then
