@@ -1,12 +1,13 @@
 # Claw-Grow 🦞
 
-OpenClaw Agent 一键安装脚本，支持交互式和静默模式安装。
+OpenClaw Agent 一键安装脚本，支持交互式和静默模式安装。开箱即用，自带技能工具箱。
 
 ## 功能特性
 
 - ✅ 交互式安装向导
 - ✅ 41+ 模型选择（Anthropic、OpenAI、MiniMax、Moonshot 等）
 - ✅ 支持飞书、Telegram、Discord 等多通道配置
+- ✅ **内置 8 大技能工具箱**（搜索、安装、协作、创造）
 - ✅ 自动复制 API 配置
 - ✅ 安全检查（不包含任何 API Key）
 
@@ -15,6 +16,19 @@ OpenClaw Agent 一键安装脚本，支持交互式和静默模式安装。
 ```bash
 curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install-agent.sh | bash
 ```
+
+## 内置技能
+
+安装后的 Agent 默认拥有以下技能：
+
+| 类别 | 技能 |
+|------|------|
+| 🔍 搜索发现 | web_search, tavily, find-skills |
+| 📦 获取安装 | github, clawhub |
+| 🤝 协作执行 | agent-reach |
+| 🧠 创造进化 | skill-creator, self-improvement |
+
+详细说明见 [TOOLS.md](./TOOLS.md)
 
 ## 静默模式
 

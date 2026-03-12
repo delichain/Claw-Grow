@@ -212,26 +212,19 @@ prompt() {
     fi
 
     # 管道模式时从 /dev/tty 读取，否则从 stdin 读取
-    if [[ -t 0 ]]; then
-        # 交互模式（终端）
+    if [[ ! -t 0 ]] && [[ -t 1 ]] && [[ -c /dev/tty ]]; then
+        # 管道模式，尝试从 /dev/tty 读取
+        if [[ -n "$default" ]]; then
+            read -p "$prompt_text [$default]: " -r </dev/tty
+        else
+            read -p "$prompt_text: " -r </dev/tty
+        fi
+    else
+        # 交互模式
         if [[ -n "$default" ]]; then
             read -p "$prompt_text [$default]: " -r
         else
             read -p "$prompt_text: " -r
-        fi
-    else
-        # 管道模式，尝试从 /dev/tty 读取
-        if [[ -t 1 ]] && [[ -c /dev/tty ]]; then
-            if [[ -n "$default" ]]; then
-                read -p "$prompt_text [$default]: " -r </dev/tty
-            else
-                read -p "$prompt_text: " -r </dev/tty
-            fi
-        else
-            # 无法交互，要求使用环境变量
-            echo -e "${ERROR}错误: 管道模式需要通过环境变量传递参数${NC}"
-            echo "用法: AGENT_ID=myagent AGENT_NAME=MyAgent curl -fsSL ... | bash"
-            exit 1
         fi
     fi
 
@@ -242,8 +235,13 @@ prompt_secret() {
     local prompt_text="$1"
     local var_name="$2"
 
-    echo -n "$prompt: "
-    read -s -r
+    echo -n "$prompt_text: "
+    # 管道模式时从 /dev/tty 读取
+    if [[ ! -t 0 ]] && [[ -t 1 ]] && [[ -c /dev/tty ]]; then
+        read -s -r </dev/tty
+    else
+        read -s -r
+    fi
     echo
     [[ -n "$REPLY" ]] && eval "$var_name=\$REPLY"
 }
@@ -252,11 +250,6 @@ prompt_yesno() {
     local prompt_text="$1"
     local default="$2"
 
-    if [[ "$AUTO_MODE" == true ]]; then
-        eval "$3=true"
-        return
-    fi
-
     local choices
     if [[ "$default" == "y" ]]; then
         choices="[Y/n]"
@@ -264,7 +257,13 @@ prompt_yesno() {
         choices="[y/N]"
     fi
 
-    read -p "$prompt_text $choices: " -r
+    # 管道模式时从 /dev/tty 读取
+    if [[ ! -t 0 ]] && [[ -t 1 ]] && [[ -c /dev/tty ]]; then
+        read -p "$prompt_text $choices: " -r </dev/tty
+    else
+        read -p "$prompt_text $choices: " -r
+    fi
+    
     case "$REPLY" in
         y|Y) eval "$3=true" ;;
         n|N) eval "$3=false" ;;
@@ -277,11 +276,6 @@ prompt_choice() {
     shift
     local options=("$@")
 
-    if [[ "$AUTO_MODE" == true ]]; then
-        eval "$4=\${options[0]}"
-        return
-    fi
-
     local n=${#options[@]}
     echo "$prompt_text"
     for i in "${!options[@]}"; do
@@ -289,7 +283,13 @@ prompt_choice() {
     done
 
     while true; do
-        read -p "   > " -r
+        # 管道模式时从 /dev/tty 读取
+        if [[ ! -t 0 ]] && [[ -t 1 ]] && [[ -c /dev/tty ]]; then
+            read -p "   > " -r </dev/tty
+        else
+            read -p "   > " -r
+        fi
+        
         if [[ "$REPLY" =~ ^[1-9]$ ]] && [[ $REPLY -le $n ]]; then
             eval "$4=\${options[$((REPLY-1))]}"
             break
@@ -348,6 +348,16 @@ collect_config() {
     prompt "   Emoji (例如: 🍍)" "🤖" "AGENT_EMOJI"
 
     echo -e "   ${SUCCESS}✓ $AGENT_ID ($AGENT_NAME $AGENT_EMOJI)${NC}"
+
+# 管道模式读取函数
+read_from_tty() {
+    if [[ ! -t 0 ]] && [[ -t 1 ]] && [[ -c /dev/tty ]]; then
+        read -r "$@" </dev/tty
+    else
+        read -r "$@"
+    fi
+}
+
 
     # 步骤 2: Model (选项式)
     echo ""
@@ -424,7 +434,7 @@ collect_config() {
     echo "   [40] kilocode/kilo/auto                (Kilo 自动路由)"
     echo "   [41] litellm/claude-opus-4-6           (LiteLLM 代理)"
     echo ""
-    read -p "   选择 [1-41]: " -r MODEL_CHOICE
+    read_from_tty -p "   选择 [1-41]: " -r MODEL_CHOICE
     MODEL_CHOICE=${MODEL_CHOICE:-1}
     
     case "$MODEL_CHOICE" in
@@ -480,7 +490,7 @@ collect_config() {
     echo "   [2] coding   - 编程工具 (适合开发任务)"
     echo "   [3] full     - 全部工具 (适合复杂任务)"
     echo ""
-    read -p "   选择 [1-3]: " -r TOOLS_CHOICE
+    read_from_tty -p "   选择 [1-3]: " -r TOOLS_CHOICE
     TOOLS_CHOICE=${TOOLS_CHOICE:-1}
     
     case "$TOOLS_CHOICE" in
@@ -510,28 +520,28 @@ collect_config() {
     echo "   [13] Twitch"
     echo "   [14] 跳过 (稍后手动配置)"
     echo ""
-    read -p "   选择 [1-14]: " -r CHANNEL_CHOICE
+    read_from_tty -p "   选择 [1-14]: " -r CHANNEL_CHOICE
     CHANNEL_CHOICE=${CHANNEL_CHOICE:-14}
     
     case "$CHANNEL_CHOICE" in
         1)
             CHANNEL_TYPE="feishu"
-            read -p "   飞书账号名 [$AGENT_ID]: " -r FEISHU_ACCOUNT
+            read_from_tty -p "   飞书账号名 [$AGENT_ID]: " -r FEISHU_ACCOUNT
             FEISHU_ACCOUNT=${FEISHU_ACCOUNT:-$AGENT_ID}
-            read -p "   appId: " -r FEISHU_APP_ID
-            read -p "   appSecret: " -r FEISHU_APP_SECRET
+            read_from_tty -p "   appId: " -r FEISHU_APP_ID
+            read_from_tty -p "   appSecret: " -r FEISHU_APP_SECRET
             ;;
         2)
             CHANNEL_TYPE="telegram"
-            read -p "   botToken: " -r TELEGRAM_TOKEN
+            read_from_tty -p "   botToken: " -r TELEGRAM_TOKEN
             ;;
         3)
             CHANNEL_TYPE="discord"
-            read -p "   botToken: " -r DISCORD_TOKEN
+            read_from_tty -p "   botToken: " -r DISCORD_TOKEN
             ;;
         4)
             CHANNEL_TYPE="slack"
-            read -p "   botToken: " -r SLACK_TOKEN
+            read_from_tty -p "   botToken: " -r SLACK_TOKEN
             ;;
         5)
             CHANNEL_TYPE="whatsapp"
@@ -540,7 +550,7 @@ collect_config() {
             ;;
         6)
             CHANNEL_TYPE="signal"
-            read -p "   signal-cli 路径: " -r SIGNAL_PATH
+            read_from_tty -p "   signal-cli 路径: " -r SIGNAL_PATH
             ;;
         7)
             CHANNEL_TYPE="line"
