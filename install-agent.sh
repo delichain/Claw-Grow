@@ -13,9 +13,10 @@ set -uo pipefail
 # =============================================================================
 
 # ---------- 配置 ----------
-readonly SCRIPT_VERSION="1.0.0"
+readonly SCRIPT_VERSION="1.1.0"
 readonly DEFAULT_MODEL="minimax-portal/MiniMax-M2.5"
 readonly DEFAULT_TOOLS="minimal"
+readonly DEFAULT_AGENT_ID="clawgrow"  # 固定 AgentID
 
 # ---------- 颜色 ----------
 BOLD='\033[1m'
@@ -329,23 +330,12 @@ collect_config() {
         echo -e "${BOLD}📝 静默模式 (环境变量)${NC}"
     fi
 
-    # 步骤 1: 基本信息
+    # 步骤 1: 基本信息（固定 AgentID = ClawGrow）
     echo -e "${BOLD}📛 步骤 1: 基本信息${NC}"
-    prompt "   Agent ID (例如: pine)" "$AGENT_ID" "AGENT_ID"
-    AGENT_ID=$(echo "$AGENT_ID" | tr '[:upper:]' '[:lower:]')
-
-    if [[ -z "$AGENT_ID" ]]; then
-        echo -e "${ERROR}错误: Agent ID 不能为空${NC}"
-        exit 1
-    fi
-
-    if ! [[ "$AGENT_ID" =~ ^[a-z][a-z0-9_-]*$ ]]; then
-        echo -e "${ERROR}Agent ID 只能包含小写字母、数字、下划线和连字符${NC}"
-        exit 1
-    fi
-
-    prompt "   显示名称 (例如: Pine)" "$AGENT_ID" "AGENT_NAME"
-    prompt "   Emoji (例如: 🍍)" "🤖" "AGENT_EMOJI"
+    AGENT_ID="$DEFAULT_AGENT_ID"
+    echo "   Agent ID: $AGENT_ID (固定)"
+    prompt "   显示名称 (例如: 龙虾成长)" "$DEFAULT_AGENT_ID" "AGENT_NAME"
+    prompt "   Emoji (例如: 🦞)" "🦞" "AGENT_EMOJI"
 
     echo -e "   ${SUCCESS}✓ $AGENT_ID ($AGENT_NAME $AGENT_EMOJI)${NC}"
 
@@ -592,6 +582,58 @@ read_from_tty() {
             echo -e "   ${WARN}跳过 Channel 配置${NC}"
             ;;
     esac
+
+    # ===== 步骤 5: 审核确认 =====
+    echo ""
+    echo -e "${BOLD}📋 步骤 5: 审核确认${NC}"
+    echo ""
+    echo "   即将创建/修改以下文件:"
+    echo "   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "   📁 新建目录:"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/memory/"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/skills/"
+    echo "      ~/.openclaw/agents/$AGENT_ID/agent/"
+    echo "      ~/.openclaw/agents/$AGENT_ID/sessions/"
+    echo ""
+    echo "   📝 新建文件:"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/SOUL.md"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/USER.md"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/IDENTITY.md"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/AGENTS.md"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/BOOTSTRAP.md"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/HEARTBEAT.md"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/TOOLS.md"
+    echo ""
+    echo "   ⚙️  修改文件:"
+    echo "      ~/.openclaw/openclaw.json (添加 Agent 和 Binding)"
+    if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
+        echo "      ~/.openclaw/openclaw.json (添加飞书账号: $FEISHU_ACCOUNT)"
+    elif [[ "$CHANNEL_TYPE" == "telegram" ]]; then
+        echo "      ~/.openclaw/openclaw.json (添加 Telegram Bot)"
+    elif [[ "$CHANNEL_TYPE" == "discord" ]]; then
+        echo "      ~/.openclaw/openclaw.json (添加 Discord Bot)"
+    fi
+    echo ""
+    echo "   🔄 执行操作:"
+    echo "      - 复制 API 配置文件 (auth-profiles.json, models.json)"
+    echo "      - openclaw gateway restart"
+    echo "   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "   ⚠️  请确认以上配置:"
+    echo "   - Agent ID: $AGENT_ID"
+    echo "   - 名称: $AGENT_NAME $AGENT_EMOJI"
+    echo "   - 模型: $MODEL"
+    echo "   - 通道: ${CHANNEL_TYPE:-跳过}"
+    echo ""
+    prompt_yesno "   确认执行安装?" "y" "CONFIRM_INSTALL"
+    
+    if [[ "$CONFIRM_INSTALL" != "true" ]]; then
+        echo ""
+        echo -e "${ERROR}已取消安装${NC}"
+        exit 0
+    fi
+    echo -e "   ${SUCCESS}✓ 开始执行安装...${NC}"
 }
 
 execute_install() {

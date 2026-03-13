@@ -57,7 +57,7 @@
 - **工具组合**：
   - **BrowserWing**：打开多标签页并行抓取关键源
   - **Tavily**：全网语义搜索补充
-  - **Agent Reach**：特定平台内容（Twitter、B站、YouTube 等）
+  - **Agent Reach**：特定平台内容（Twitter，B站、YouTube 等）
 - **流程**：任务指派给 Minimax2.5 → BrowserWing 多源抓取 → Tavily 搜索补充 → 深度推理 → 生成详细文字 + 可视化报表
 - **要求**：必须注明来源
 - **原则**：平台内容优先原生工具
