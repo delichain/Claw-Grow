@@ -217,37 +217,36 @@ execute_install() {
     # 2. 更新 openclaw.json
     update_openclaw_json
 
-    # 3. 克隆 GitHub 上的身份文件模板
-    echo "   克隆身份文件模板..."
+    # 3. 下载 GitHub 上的身份文件模板（用 curl 更稳定）
+    echo "   下载身份文件模板..."
     local workspace="~/.openclaw/workspace-$AGENT_ID"
+    mkdir -p "$workspace"
     
-    # 临时克隆仓库获取模板文件
-    local temp_dir=$(mktemp -d)
-    if git clone --depth 1 https://github.com/delichain/Claw-Grow.git "$temp_dir" 2>/dev/null; then
-        # 复制模板文件（如果存在）
-        [[ -f "$temp_dir/SOUL.md" ]] && cp "$temp_dir/SOUL.md" "$workspace/SOUL.md"
-        [[ -f "$temp_dir/USER.md" ]] && cp "$temp_dir/USER.md" "$workspace/USER.md"
-        [[ -f "$temp_dir/AGENTS.md" ]] && cp "$temp_dir/AGENTS.md" "$workspace/AGENTS.md"
-        [[ -f "$temp_dir/TOOLS.md" ]] && cp "$temp_dir/TOOLS.md" "$workspace/TOOLS.md"
-        [[ -f "$temp_dir/HEARTBEAT.md" ]] && cp "$temp_dir/HEARTBEAT.md" "$workspace/HEARTBEAT.md"
-        
-        # 更新 USER.md 中的变量占位符
-        if [[ -f "$workspace/USER.md" ]]; then
-            sed -i "" "s/{{AGENT_NAME}}/$AGENT_NAME/g" "$workspace/USER.md" 2>/dev/null || true
-            sed -i "" "s/{{AGENT_EMOJI}}/$AGENT_EMOJI/g" "$workspace/USER.md" 2>/dev/null || true
+    local base_url="https://raw.githubusercontent.com/delichain/Claw-Grow/main"
+    local files="SOUL.md USER.md AGENTS.md TOOLS.md HEARTBEAT.md"
+    
+    for file in $files; do
+        if curl -fsSL "$base_url/$file" -o "$workspace/$file" 2>/dev/null; then
+            echo "   ✓ 已下载 $file"
         fi
-        
-        # 复制 skills 文件夹（如果存在）
-        if [[ -d "$temp_dir/skills" ]]; then
-            cp -r "$temp_dir/skills" "$workspace/skills"
-            echo "   ✓ 已下载 skills 文件夹"
-        fi
-        
-        rm -rf "$temp_dir"
-        echo "   ✓ 已下载身份文件模板"
-    else
-        echo "   ⚠️ 无法克隆模板，跳过"
+    done
+    
+    # 更新 USER.md 中的变量占位符
+    if [[ -f "$workspace/USER.md" ]]; then
+        sed -i "" "s/{{AGENT_NAME}}/$AGENT_NAME/g" "$workspace/USER.md" 2>/dev/null || true
+        sed -i "" "s/{{AGENT_EMOJI}}/$AGENT_EMOJI/g" "$workspace/USER.md" 2>/dev/null || true
     fi
+    
+    # 下载 skills 文件夹（只下载主要的 skill）
+    local skills=("agent-reach" "find-skills" "skill-creator" "tavily" "openclaw-security-protocol")
+    mkdir -p "$workspace/skills"
+    for skill in "${skills[@]}"; do
+        if curl -fsSL "$base_url/skills/$skill/SKILL.md" -o "$workspace/skills/$skill/SKILL.md" 2>/dev/null; then
+            echo "   ✓ 已下载 skill: $skill"
+        fi
+    done
+    
+    echo "   ✓ 已下载身份文件模板"
 
     # 4. 提示重启
     echo ""
