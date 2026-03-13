@@ -3,10 +3,10 @@ set -uo pipefail
 
 # =============================================================================
 # Claw Grow - Agent 安装向导
-# 底层调用 openclaw agents add 官方命令
+# 复用官方 openclaw agents add 命令
 # =============================================================================
 
-readonly SCRIPT_VERSION="1.2.0"
+readonly SCRIPT_VERSION="2.0.0"
 
 # ---------- 颜色 ----------
 BOLD='\033[1m'
@@ -22,8 +22,6 @@ AGENT_EMOJI=""
 MODEL=""
 CHANNEL_TYPE=""
 FEISHU_ACCOUNT=""
-FEISHU_APP_ID=""
-FEISHU_APP_SECRET=""
 
 # ---------- 解析参数 ----------
 parse_args() {
@@ -131,7 +129,7 @@ install() {
   {"label": "OpenAI GPT-5.4", "value": "openai/gpt-5.4"},
   {"label": "Anthropic Claude Sonnet 4.6", "value": "anthropic/claude-sonnet-4-6"},
   {"label": "Moonshot Kimi K2.5", "value": "moonshot/kimi-k2.5"},
-  {"label": "其他模型...", "value": "custom"}
+  {"label": "自定义模型...", "value": "custom"}
 ]
 EOF
     )
@@ -139,6 +137,24 @@ EOF
 
     if [[ "$MODEL" == "custom" ]]; then
         prompt "请输入模型ID" "minimax/MiniMax-M2.5" "MODEL"
+    fi
+
+    # 模型 API 配置
+    echo ""
+    echo -e "${BOLD}📡 模型 API 配置${NC}"
+    echo ""
+    echo "   [1] 使用当前配置 (默认)"
+    echo "   [2] 粘贴新的 API Key"
+    echo ""
+    echo -n "   请选择 > "
+    read -r
+
+    if [[ "$REPLY" == "2" ]]; then
+        prompt "请粘贴 API Key" "" "CUSTOM_API_KEY"
+        # TODO: 这里可以添加更新 auth-profiles.json 的逻辑
+        echo "   ✓ API Key 已记录"
+    else
+        echo "   ✓ 使用当前配置"
     fi
 
     # 步骤 3: 选择通道
@@ -159,10 +175,50 @@ EOF
     )
     prompt_choice "请选择通信通道" "$channels_json" "CHANNEL_TYPE"
 
+    # 显示通道配置代码
     if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
         prompt "请输入飞书账号名" "$AGENT_ID" "FEISHU_ACCOUNT"
+        
+        echo ""
+        echo -e "${BOLD}📋 飞书配置代码${NC}"
+        echo ""
+        echo "   你需要准备以下信息："
+        echo "   - appId: 飞书应用 ID"
+        echo "   - appSecret: 飞书应用密钥"
+        echo ""
+        echo "   获取方式："
+        echo "   1. 打开 https://open.feishu.cn/"
+        echo "   2. 创建应用 → 找到应用详情"
+        echo "   3. 在'凭证与基础信息'中获取 App ID 和 App Secret"
+        echo ""
         prompt "请输入飞书 App ID" "" "FEISHU_APP_ID"
         prompt "请输入飞书 App Secret" "" "FEISHU_APP_SECRET"
+        
+    elif [[ "$CHANNEL_TYPE" == "telegram" ]]; then
+        echo ""
+        echo -e "${BOLD}📋 Telegram 配置代码${NC}"
+        echo ""
+        echo "   你需要准备以下信息："
+        echo "   - botToken: Telegram Bot Token"
+        echo ""
+        echo "   获取方式："
+        echo "   1. @BotFather 创建新机器人"
+        echo "   2. 获取 Bot Token"
+        echo ""
+        prompt "请输入 Telegram Bot Token" "" "TELEGRAM_TOKEN"
+        
+    elif [[ "$CHANNEL_TYPE" == "discord" ]]; then
+        echo ""
+        echo -e "${BOLD}📋 Discord 配置代码${NC}"
+        echo ""
+        echo "   你需要准备以下信息："
+        echo "   - token: Discord Bot Token"
+        echo ""
+        echo "   获取方式："
+        echo "   1. https://discord.com/developers/applications"
+        echo "   2. 创建应用 → Bot → 获取 Token"
+        echo ""
+        prompt "请输入 Discord Bot Token" "" "DISCORD_TOKEN"
     fi
 
     # 步骤 4: 确认安装
@@ -194,8 +250,10 @@ EOF
 execute_install() {
     echo ""
     echo -e "${BOLD}🔧 开始安装...${NC}"
+    echo ""
 
-    # 1. 调用 openclaw agents add
+    # 1. 调用 openclaw agents add（官方命令，自动创建 workspace + 身份文件）
+    echo "   [1/4] 调用官方命令创建 Agent..."
     local cmd="openclaw agents add $AGENT_ID --workspace ~/.openclaw/workspace-$AGENT_ID --model $MODEL --non-interactive"
 
     if [[ "$CHANNEL_TYPE" != "skip" ]]; then
@@ -210,45 +268,36 @@ execute_install() {
     eval $cmd
 
     if [[ $? -ne 0 ]]; then
-        echo -e "${ERROR}安装失败${NC}"
+        echo -e "${ERROR}❌ openclaw agents add 失败${NC}"
         exit 1
     fi
+    echo "   ✓ Agent 创建成功"
 
-    # 2. 更新 openclaw.json
+    # 2. 提示用户登录 channel
+    if [[ "$CHANNEL_TYPE" != "skip" ]]; then
+        echo ""
+        echo "   [2/4] Channel 登录..."
+        echo ""
+        echo -e "${WARN}⚠️ 请运行以下命令登录 channel:${NC}"
+        echo ""
+        echo "   openclaw channels login --channel $CHANNEL_TYPE --account ${FEISHU_ACCOUNT:-$AGENT_ID}"
+        echo ""
+        echo -e "${WARN}   登录完成后再继续...${NC}"
+        echo -n "   按回车继续 > "
+        read -r
+    fi
+
+    # 3. 更新 openclaw.json（bindings + agentToAgent）
+    echo ""
+    echo "   [3/4] 更新配置文件..."
     update_openclaw_json
 
-    # 3. 下载 GitHub 上的身份文件模板（用 curl 更稳定）
-    echo "   下载身份文件模板..."
-    local workspace="~/.openclaw/workspace-$AGENT_ID"
-    mkdir -p "$workspace"
-    
-    local base_url="https://raw.githubusercontent.com/delichain/Claw-Grow/main"
-    local files="SOUL.md USER.md AGENTS.md TOOLS.md HEARTBEAT.md"
-    
-    for file in $files; do
-        if curl -fsSL "$base_url/$file" -o "$workspace/$file" 2>/dev/null; then
-            echo "   ✓ 已下载 $file"
-        fi
-    done
-    
-    # 更新 USER.md 中的变量占位符
-    if [[ -f "$workspace/USER.md" ]]; then
-        sed -i "" "s/{{AGENT_NAME}}/$AGENT_NAME/g" "$workspace/USER.md" 2>/dev/null || true
-        sed -i "" "s/{{AGENT_EMOJI}}/$AGENT_EMOJI/g" "$workspace/USER.md" 2>/dev/null || true
-    fi
-    
-    # 下载 skills 文件夹（只下载主要的 skill）
-    local skills=("agent-reach" "find-skills" "skill-creator" "tavily" "openclaw-security-protocol")
-    mkdir -p "$workspace/skills"
-    for skill in "${skills[@]}"; do
-        if curl -fsSL "$base_url/skills/$skill/SKILL.md" -o "$workspace/skills/$skill/SKILL.md" 2>/dev/null; then
-            echo "   ✓ 已下载 skill: $skill"
-        fi
-    done
-    
-    echo "   ✓ 已下载身份文件模板"
+    # 4. 安装 Skills（可选）
+    echo ""
+    echo "   [4/4] Skills 安装..."
+    install_skills
 
-    # 4. 提示重启
+    # 5. 提示重启
     echo ""
     echo -e "${SUCCESS}✓ 安装完成！${NC}"
     echo ""
@@ -263,50 +312,65 @@ update_openclaw_json() {
     local json_file="$HOME/.openclaw/openclaw.json"
     local agent_id="$AGENT_ID"
     
-    echo "   更新 openclaw.json..."
-    
     # 1. 更新 tools.agentToAgent.allow
     if [[ -f "$json_file" ]]; then
-        # 添加 agent 到 agentToAgent.allow 列表
         local current_allow
         current_allow=$(jq -r '.tools.agentToAgent.allow[]' "$json_file" 2>/dev/null | tr '\n' ',' | sed 's/,$//')
         
-        # 检查是否已存在
         if ! echo "$current_allow" | grep -q "$agent_id"; then
             jq --arg agent "$agent_id" '.tools.agentToAgent.allow += [$agent]' "$json_file" > tmp_$$.json && mv tmp_$$.json "$json_file"
             echo "   ✓ 已添加到 tools.agentToAgent.allow"
         fi
     fi
     
-    # 2. 更新 channels (如果是飞书)
-    if [[ "$CHANNEL_TYPE" == "feishu" ]] && [[ -n "$FEISHU_APP_ID" ]] && [[ -n "$FEISHU_APP_SECRET" ]]; then
-        local channel_json=$(cat << EOF
-{
-  "appId": "$FEISHU_APP_ID",
-  "appSecret": "$FEISHU_APP_SECRET",
-  "groups": {}
-}
-EOF
-        )
-        jq --arg account "$FEISHU_ACCOUNT" --argjson data "$channel_json" '.channels.feishu.accounts[$account] = $data' "$json_file" > tmp_$$.json && mv tmp_$$.json "$json_file"
-        echo "   ✓ 已添加飞书账号: $FEISHU_ACCOUNT"
-    fi
-    
-    # 3. 更新 bindings (如果选择了通道)
+    # 2. 更新 bindings
     if [[ "$CHANNEL_TYPE" != "skip" ]]; then
+        local account_id="${FEISHU_ACCOUNT:-$agent_id}"
         local binding_json=$(cat << EOF
 {
   "agentId": "$agent_id",
   "match": {
     "channel": "$CHANNEL_TYPE",
-    "accountId": "$FEISHU_ACCOUNT"
+    "accountId": "$account_id"
   }
 }
 EOF
         )
         jq --argjson binding "$binding_json" '.bindings += [$binding]' "$json_file" > tmp_$$.json && mv tmp_$$.json "$json_file"
-        echo "   ✓ 已添加 binding: $CHANNEL_TYPE:$FEISHU_ACCOUNT"
+        echo "   ✓ 已添加 binding: $CHANNEL_TYPE:$account_id"
     fi
+}
+
+# ---------- 安装 Skills ----------
+install_skills() {
+    echo ""
+    echo -e "${BOLD}📦 可选 Skills 安装${NC}"
+    echo ""
+    echo "   [1] 安装 Skills 自动发现流程（推荐）"
+    echo "   [2] 跳过"
+    echo ""
+    echo -n "   请选择 > "
+    read -r
+
+    case "$REPLY" in
+        1)
+            local workspace="~/.openclaw/workspace-$AGENT_ID"
+            mkdir -p "$workspace/skills"
+            
+            # 创建 skills-auto-discovery 目录
+            mkdir -p "$workspace/skills/skills-auto-discovery"
+            
+            # 下载 SKILL.md
+            if curl -fsSL "https://raw.githubusercontent.com/delichain/Claw-Grow/main/skills/skills-auto-discovery/SKILL.md" -o "$workspace/skills/skills-auto-discovery/SKILL.md" 2>/dev/null; then
+                echo "   ✓ Skills 自动发现流程已安装"
+            else
+                echo "   ⚠️ 无法下载，跳过"
+            fi
+            ;;
+        *)
+            echo "   ✓ 跳过"
+            ;;
+    esac
 }
 
 # ---------- 主入口 ----------

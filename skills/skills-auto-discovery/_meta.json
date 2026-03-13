@@ -1,0 +1,7 @@
+{
+  "name": "skills-auto-discovery",
+  "version": "1.0.0",
+  "description": "自动发现并安装 Skills 的工作流",
+  "author": "Claw Grow",
+  "tags": ["skills", "automation", "discovery"]
+}
