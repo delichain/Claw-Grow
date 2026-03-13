@@ -6,7 +6,7 @@ set -uo pipefail
 # 底层调用 openclaw agents add 官方命令
 # =============================================================================
 
-readonly SCRIPT_VERSION="1.0.0"
+readonly SCRIPT_VERSION="1.1.0"
 
 # ---------- 颜色 ----------
 BOLD='\033[1m'
@@ -210,25 +210,31 @@ execute_install() {
         exit 1
     fi
 
-    # 2. 创建身份文件
+    # 2. 克隆 GitHub 上的身份文件模板
+    echo "   克隆身份文件模板..."
     local workspace="~/.openclaw/workspace-$AGENT_ID"
-    mkdir -p "$workspace"
-
-    cat > "$workspace/SOUL.md" << SOULEOF
-# SOUL.md
-
-我是 $AGENT_NAME ($AGENT_EMOJI)，Claw Grow 生态系统的一部分。
-
-我的职责是帮助用户管理 OpenClaw Agent。
-SOLEOF
-
-    cat > "$workspace/USER.md" << USEREOF
-# USER.md
-
-- **Name:** $AGENT_NAME
-- **Emoji:** $AGENT_EMOJI
-- **Created:** $(date)
-USEREOF
+    
+    # 临时克隆仓库获取模板文件
+    local temp_dir=$(mktemp -d)
+    if git clone --depth 1 https://github.com/delichain/Claw-Grow.git "$temp_dir" 2>/dev/null; then
+        # 复制模板文件（如果存在）
+        [[ -f "$temp_dir/SOUL.md" ]] && cp "$temp_dir/SOUL.md" "$workspace/SOUL.md"
+        [[ -f "$temp_dir/USER.md" ]] && cp "$temp_dir/USER.md" "$workspace/USER.md"
+        [[ -f "$temp_dir/AGENTS.md" ]] && cp "$temp_dir/AGENTS.md" "$workspace/AGENTS.md"
+        [[ -f "$temp_dir/TOOLS.md" ]] && cp "$temp_dir/TOOLS.md" "$workspace/TOOLS.md"
+        [[ -f "$temp_dir/HEARTBEAT.md" ]] && cp "$temp_dir/HEARTBEAT.md" "$workspace/HEARTBEAT.md"
+        
+        # 更新 USER.md 中的变量占位符
+        if [[ -f "$workspace/USER.md" ]]; then
+            sed -i "" "s/{{AGENT_NAME}}/$AGENT_NAME/g" "$workspace/USER.md" 2>/dev/null || true
+            sed -i "" "s/{{AGENT_EMOJI}}/$AGENT_EMOJI/g" "$workspace/USER.md" 2>/dev/null || true
+        fi
+        
+        rm -rf "$temp_dir"
+        echo "   ✓ 已下载身份文件模板"
+    else
+        echo "   ⚠️ 无法克隆模板，跳过"
+    fi
 
     # 3. 提示重启
     echo ""
