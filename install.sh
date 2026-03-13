@@ -87,14 +87,20 @@ prompt_choice() {
     echo -n "   请输入选项编号 > "
     read -r
 
+    # 空输入时重新提示
+    if [[ -z "$REPLY" ]]; then
+        echo -e "${ERROR}⚠️ 请输入有效选项${NC}"
+        return 1
+    fi
+
     if [[ "$REPLY" =~ ^[0-9]+$ ]] && [[ "$REPLY" -ge 1 ]] && [[ "$REPLY" -le $count-1 ]]; then
         local selected
         selected=$(echo "$options_json" | jq -r ".[$((REPLY-1))].value")
         eval "$var_name=\$selected"
         echo -e "   ${SUCCESS}✓ 已选择: $(echo "$options_json" | jq -r ".[$((REPLY-1))].label")${NC}"
     else
-        echo -e "${ERROR}无效选择${NC}"
-        eval "$var_name=$(echo "$options_json" | jq -r '.[0].value')"
+        echo -e "${ERROR}⚠️ 无效选择，请重新选择${NC}"
+        return 1
     fi
 }
 
