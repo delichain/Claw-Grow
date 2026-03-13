@@ -1,95 +1,108 @@
 # Claw-Grow 🦞
 
-OpenClaw Agent 一键安装脚本，支持交互式和静默模式安装。开箱即用，自带技能工具箱。
+OpenClaw Agent 一键安装脚本，支持交互式和静默模式安装。开箱即用，自置技能工具箱。
+
+## 两种安装模式
+
+| 模式 | 命令 | 适用场景 |
+|------|------|----------|
+| 🤖 **我是 Agent** | `curl ... \| bash -s -- --agent-mode` | 在 Claude Code 等 Agent 对话框中运行 |
+| 👤 **我是人类** | `curl ... \| bash` | 在终端直接运行 |
+
+## 一键安装
+
+### 方式一：我是人类（终端交互）
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install-agent.sh | bash
+```
+
+安装过程中会一步步提示选择：
+1. 输入显示名称
+2. 选择 Emoji
+3. 选择模型 (1-41)
+4. 选择工具配置 (minimal/coding/full)
+5. 选择通信通道 (飞书/Telegram/Discord/Slack 等)
+6. 审核确认后执行安装
+
+### 方式二：我是 Agent（对话框交互）
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install-agent.sh | bash -s -- --agent-mode
+```
+
+在 Agent 对话框中运行时使用此模式，会逐步引导填写配置。
 
 ## 功能特性
 
 - ✅ 交互式安装向导
-- ✅ 41+ 模型选择（Anthropic、OpenAI、MiniMax、Moonshot 等）
-- ✅ 支持飞书、Telegram、Discord 等多通道配置
-- ✅ **内置 8 大技能工具箱**（搜索、安装、协作、创造）
+- ✅ **41+ 模型选择**（Anthropic、OpenAI、MiniMax、Moonshot 等）
+- ✅ **14 种通信通道**（飞书、Telegram、Discord、Slack 等）
+- ✅ 内置 8 大技能工具箱
 - ✅ 自动复制 API 配置
 - ✅ 安全检查（不包含任何 API Key）
 
-## 一键安装
+## 支持的模型
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install-agent.sh | bash
-```
-
-## 内置技能
-
-安装后的 Agent 默认拥有以下技能：
-
-| 类别 | 技能 |
+| 类别 | 模型 |
 |------|------|
-| 🔍 搜索发现 | web_search, tavily, find-skills |
-| 📦 获取安装 | github, clawhub |
-| 🤝 协作执行 | agent-reach |
-| 🧠 创造进化 | skill-creator, self-improvement |
+| Anthropic | Claude Opus 4.6, Sonnet 4.6, Haiku 4.6 |
+| OpenAI | GPT-5.4, GPT-5.4 Pro, O3, O3 Mini |
+| MiniMax | M2.5, M2.5 高速版, M2.5 闪电版, VL-01 |
+| Moonshot | Kimi K2.5, Kimi K2 Thinking, Kimi Coding |
+| HuggingFace | DeepSeek R1, Qwen3 8B, Llama 3.3 70B |
+| Venice AI | Kimi K2.5, Claude Opus, Qwen3 Coder, Llama |
+| Ollama | Qwen2.5 14B, Llama 3.3 70B, DeepSeek R1, Phi4 |
+| 其他 | OpenRouter, Mistral, NVIDIA, Z.AI, Xiaomi MiMo |
 
-详细说明见 [TOOLS.md](./TOOLS.md)
+## 支持的通道
 
-## 静默模式
+| 通道 | 状态 |
+|------|------|
+| 飞书 | ✅ 自动配置 |
+| Telegram | ✅ 自动配置 |
+| Discord | ✅ 自动配置 |
+| Slack | ✅ 自动配置 |
+| WhatsApp | ⚠️ 需 QR 配对 |
+| Signal | ✅ 配置路径 |
+| LINE/Mattermost/Teams 等 | ⚠️ 需插件 |
+
+## 高级用法
+
+### 静默模式（自动确认）
 
 ```bash
-# 通过环境变量
-AGENT_ID=myagent AGENT_NAME="My Agent" curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install-agent.sh | bash
-
-# 或使用 -y 参数
 curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install-agent.sh | bash -s -- -y
 ```
 
-## 使用方式
-
-### 1. 交互模式
+### 环境变量安装
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install-agent.sh | bash
+AGENT_NAME="我的 Agent" MODEL="minimax/MiniMax-M2.5" curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install-agent.sh | bash -s -- -y
 ```
 
-脚本会一步步提示：
-1. 输入 Agent ID
-2. 输入显示名称
-3. 选择 Emoji
-4. 选择模型 (1-41)
-5. 选择工具配置
-6. 选择通道配置
-
-### 2. 卸载 Agent
+### 卸载 Agent
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install-agent.sh | bash -s -- --uninstall <agent-id>
+curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install-agent.sh | bash -s -- --uninstall clawgrow
 ```
 
-### 3. 查看状态
+### 查看状态
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install-agent.sh | bash -s -- --status
 ```
 
-## 支持的模型
+### 模拟运行（测试）
 
-| 类别 | 模型数 |
-|------|-------|
-| Anthropic | 3 |
-| OpenAI | 4 |
-| MiniMax | 4 |
-| Moonshot | 3 |
-| HuggingFace | 3 |
-| Venice AI | 4 |
-| Together AI | 3 |
-| OpenRouter | 3 |
-| Mistral | 2 |
-| NVIDIA | 2 |
-| Z.AI | 2 |
-| Xiaomi MiMo | 1 |
-| Ollama | 4 |
-| 其他 | 2 |
+```bash
+curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install-agent.sh | bash -s -- --agent-mode --dry-run
+```
 
 ## 注意事项
 
 - 安装前请确保已安装 `openclaw` 和 `jq`
+- Agent ID 固定为 `clawgrow`
 - 脚本会自动从已有 Agent 复制 API 配置
 - 不会包含任何用户 API Key 或个人信息
 
@@ -102,7 +115,7 @@ cd Claw-Grow
 
 # 本地测试
 chmod +x install-agent.sh
-./install-agent.sh
+./install-agent.sh --help
 ```
 
 ## License
