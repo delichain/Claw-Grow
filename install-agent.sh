@@ -288,9 +288,9 @@ cmd_uninstall() {
         echo "✓ 已删除工作目录: $workspace"
     fi
 
-    # 重启 gateway
+    # 重启 gateway (后台执行，不阻塞)
     if ! $DRY_RUN; then
-        openclaw gateway restart 2>/dev/null || true
+        openclaw gateway restart >/dev/null 2>&1 &
     fi
 
     echo -e "${SUCCESS}✓ Agent '$AGENT_ID' 已卸载${NC}"
@@ -1392,10 +1392,11 @@ TOOLSEOF
     echo -e "${BOLD}🔄 步骤 8: 重启 Gateway${NC}"
 
     if $DRY_RUN; then
-        echo "   [DRY] openclaw gateway restart"
+        echo "   [DRY] openclaw gateway restart &"
     else
-        openclaw gateway restart 2>/dev/null || true
-        echo -e "   ${SUCCESS}✓ Gateway 已重启${NC}"
+        # 后台重启，不阻塞当前Agent会话
+        openclaw gateway restart >/dev/null 2>&1 &
+        echo -e "   ${SUCCESS}✓ Gateway 重启命令已发送 (后台执行)${NC}"
     fi
 
     # 完成
