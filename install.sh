@@ -6,7 +6,7 @@ set -uo pipefail
 # 底层调用 openclaw agents add 官方命令
 # =============================================================================
 
-readonly SCRIPT_VERSION="1.1.0"
+readonly SCRIPT_VERSION="1.2.0"
 
 # ---------- 颜色 ----------
 BOLD='\033[1m'
@@ -22,6 +22,8 @@ AGENT_EMOJI=""
 MODEL=""
 CHANNEL_TYPE=""
 FEISHU_ACCOUNT=""
+FEISHU_APP_ID=""
+FEISHU_APP_SECRET=""
 
 # ---------- 解析参数 ----------
 parse_args() {
@@ -55,7 +57,7 @@ prompt() {
     echo -e "${BOLD}📝 $prompt_text${NC}"
     [[ -n "$default" ]] && echo "   (默认值: $default)"
     echo -n "   > "
-    read -r </dev/tty
+    read -r
 
     if [[ -n "$REPLY" ]]; then
         eval "$var_name=\$REPLY"
@@ -85,7 +87,7 @@ prompt_choice() {
 
     echo ""
     echo -n "   请输入选项编号 > "
-    read -r </dev/tty
+    read -r
 
     if [[ "$REPLY" =~ ^[0-9]+$ ]] && [[ "$REPLY" -ge 1 ]] && [[ "$REPLY" -le $count-1 ]]; then
         local selected
@@ -159,6 +161,8 @@ EOF
 
     if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
         prompt "请输入飞书账号名" "$AGENT_ID" "FEISHU_ACCOUNT"
+        prompt "请输入飞书 App ID" "" "FEISHU_APP_ID"
+        prompt "请输入飞书 App Secret" "" "FEISHU_APP_SECRET"
     fi
 
     # 步骤 4: 确认安装
@@ -175,7 +179,7 @@ EOF
 
     local confirm
     echo -n "   确认安装? [Y/n] > "
-    read -r </dev/tty
+    read -r
     confirm=${REPLY:-y}
 
     if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
@@ -210,9 +214,12 @@ execute_install() {
         exit 1
     fi
 
-    # 2. 克隆 GitHub 上的身份文件模板
+    # 2. 更新 openclaw.json
+    update_openclaw_json
+
+    # 3. 克隆 GitHub 上的身份文件模板
     echo "   克隆身份文件模板..."
-    local workspace="$HOME/.openclaw/workspace-$AGENT_ID"
+    local workspace="~/.openclaw/workspace-$AGENT_ID"
     
     # 临时克隆仓库获取模板文件
     local temp_dir=$(mktemp -d)
@@ -242,7 +249,7 @@ execute_install() {
         echo "   ⚠️ 无法克隆模板，跳过"
     fi
 
-    # 3. 提示重启
+    # 4. 提示重启
     echo ""
     echo -e "${SUCCESS}✓ 安装完成！${NC}"
     echo ""
@@ -250,6 +257,57 @@ execute_install() {
     echo "   openclaw gateway restart"
     echo ""
     echo "然后就可以通过 $CHANNEL_TYPE 跟 $AGENT_NAME 聊天了！"
+}
+
+# ---------- 更新 openclaw.json ----------
+update_openclaw_json() {
+    local json_file="$HOME/.openclaw/openclaw.json"
+    local agent_id="$AGENT_ID"
+    
+    echo "   更新 openclaw.json..."
+    
+    # 1. 更新 tools.agentToAgent.allow
+    if [[ -f "$json_file" ]]; then
+        # 添加 agent 到 agentToAgent.allow 列表
+        local current_allow
+        current_allow=$(jq -r '.tools.agentToAgent.allow[]' "$json_file" 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+        
+        # 检查是否已存在
+        if ! echo "$current_allow" | grep -q "$agent_id"; then
+            jq --arg agent "$agent_id" '.tools.agentToAgent.allow += [$agent]' "$json_file" > tmp_$$.json && mv tmp_$$.json "$json_file"
+            echo "   ✓ 已添加到 tools.agentToAgent.allow"
+        fi
+    fi
+    
+    # 2. 更新 channels (如果是飞书)
+    if [[ "$CHANNEL_TYPE" == "feishu" ]] && [[ -n "$FEISHU_APP_ID" ]] && [[ -n "$FEISHU_APP_SECRET" ]]; then
+        local channel_json=$(cat << EOF
+{
+  "appId": "$FEISHU_APP_ID",
+  "appSecret": "$FEISHU_APP_SECRET",
+  "groups": {}
+}
+EOF
+        )
+        jq --arg account "$FEISHU_ACCOUNT" --argjson data "$channel_json" '.channels.feishu.accounts[$account] = $data' "$json_file" > tmp_$$.json && mv tmp_$$.json "$json_file"
+        echo "   ✓ 已添加飞书账号: $FEISHU_ACCOUNT"
+    fi
+    
+    # 3. 更新 bindings (如果选择了通道)
+    if [[ "$CHANNEL_TYPE" != "skip" ]]; then
+        local binding_json=$(cat << EOF
+{
+  "agentId": "$agent_id",
+  "match": {
+    "channel": "$CHANNEL_TYPE",
+    "accountId": "$FEISHU_ACCOUNT"
+  }
+}
+EOF
+        )
+        jq --argjson binding "$binding_json" '.bindings += [$binding]' "$json_file" > tmp_$$.json && mv tmp_$$.json "$json_file"
+        echo "   ✓ 已添加 binding: $CHANNEL_TYPE:$FEISHU_ACCOUNT"
+    fi
 }
 
 # ---------- 主入口 ----------
