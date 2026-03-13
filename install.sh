@@ -55,7 +55,7 @@ prompt() {
     echo -e "${BOLD}📝 $prompt_text${NC}"
     [[ -n "$default" ]] && echo "   (默认值: $default)"
     echo -n "   > "
-    read -r
+    read -r </dev/tty
 
     if [[ -n "$REPLY" ]]; then
         eval "$var_name=\$REPLY"
@@ -85,7 +85,7 @@ prompt_choice() {
 
     echo ""
     echo -n "   请输入选项编号 > "
-    read -r
+    read -r </dev/tty
 
     if [[ "$REPLY" =~ ^[0-9]+$ ]] && [[ "$REPLY" -ge 1 ]] && [[ "$REPLY" -le $count-1 ]]; then
         local selected
@@ -175,7 +175,7 @@ EOF
 
     local confirm
     echo -n "   确认安装? [Y/n] > "
-    read -r
+    read -r </dev/tty
     confirm=${REPLY:-y}
 
     if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
@@ -212,7 +212,7 @@ execute_install() {
 
     # 2. 克隆 GitHub 上的身份文件模板
     echo "   克隆身份文件模板..."
-    local workspace="~/.openclaw/workspace-$AGENT_ID"
+    local workspace="$HOME/.openclaw/workspace-$AGENT_ID"
     
     # 临时克隆仓库获取模板文件
     local temp_dir=$(mktemp -d)
