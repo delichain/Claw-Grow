@@ -1361,9 +1361,28 @@ TOOLSEOF
         mv "$OPENCLAW_CONFIG.tmp" "$OPENCLAW_CONFIG"
         echo -e "   ${SUCCESS}✓ Agent 已添加到列表${NC}"
 
+<<<<<<< HEAD
         # 添加 Bindings
         # OpenClaw 不使用 bindings，只需配置 channel 账号
         # (bindings 功能已被移除)
+=======
+        # 添加 Bindings（根层级）
+        if [[ -n "$CHANNEL_TYPE" && "$CHANNEL_TYPE" != "skip" ]]; then
+            NEW_BINDING=$(jq -n \
+                --arg id "$AGENT_ID" \
+                --arg channel "$CHANNEL_TYPE" \
+                '{
+                    "agentId": $id,
+                    "match": {
+                        "channel": $channel,
+                        "accountId": $id
+                    }
+                }')
+            jq --argjson newBinding "$NEW_BINDING" '.bindings += [$newBinding]' "$OPENCLAW_CONFIG" > "$OPENCLAW_CONFIG.tmp"
+            mv "$OPENCLAW_CONFIG.tmp" "$OPENCLAW_CONFIG"
+            echo -e "   ${SUCCESS}✓ Binding 已添加${NC}"
+        fi
+>>>>>>> 2aaf2ca (fix: 恢复bindings写入，使用根层级路径)
 
         # Channel 配置
         if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
