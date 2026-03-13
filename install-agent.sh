@@ -1418,18 +1418,6 @@ TOOLSEOF
         fi
     fi
 
-    # 重启 Gateway
-    echo ""
-    echo -e "${BOLD}🔄 步骤 8: 重启 Gateway${NC}"
-
-    if $DRY_RUN; then
-        echo "   [DRY] openclaw gateway restart &"
-    else
-        # 后台重启，不阻塞当前Agent会话
-        openclaw gateway restart >/dev/null 2>&1 &
-        echo -e "   ${SUCCESS}✓ Gateway 重启命令已发送 (后台执行)${NC}"
-    fi
-
     # 完成
     echo ""
     echo -e "${SUCCESS}======================================${NC}"
