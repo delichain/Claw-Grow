@@ -104,7 +104,13 @@ agent_prompt() {
     echo -e "${BOLD}📝 $prompt_text${NC}"
     [[ -n "$default" ]] && echo "   (默认值: $default)"
     echo -n "   > "
-    read -r
+    
+    # 强制从 /dev/tty 读取，确保 agent 对话框里也能等待输入
+    if [[ -c /dev/tty ]]; then
+        read -r </dev/tty
+    else
+        read -r
+    fi
 
     if [[ -n "$REPLY" ]]; then
         eval "$var_name=\$REPLY"
@@ -137,7 +143,13 @@ agent_prompt_choice() {
 
     echo ""
     echo -n "   请输入选项编号 > "
-    read -r
+    
+    # 强制从 /dev/tty 读取
+    if [[ -c /dev/tty ]]; then
+        read -r </dev/tty
+    else
+        read -r
+    fi
 
     if [[ "$REPLY" =~ ^[0-9]+$ ]] && [[ "$REPLY" -ge 1 ]] && [[ "$REPLY" -le $count-1 ]]; then
         local selected
@@ -157,7 +169,13 @@ agent_prompt_secret() {
     echo ""
     echo -e "${BOLD}🔐 $prompt_text${NC}"
     echo -n "   > "
-    read -rs
+    
+    # 强制从 /dev/tty 读取
+    if [[ -c /dev/tty ]]; then
+        read -rs </dev/tty
+    else
+        read -rs
+    fi
 
     if [[ -n "$REPLY" ]]; then
         eval "$var_name=\$REPLY"
@@ -177,18 +195,26 @@ agent_confirm() {
     else
         echo -n "   [y/N] > "
     fi
-    read -r
+    
+    # 强制从 /dev/tty 读取
+    local reply
+    if [[ -c /dev/tty ]]; then
+        read -r reply </dev/tty
+    else
+        read -r reply
+    fi
 
-    case "$REPLY" in
+    case "$reply" in
         y|Y) return 0 ;;
         n|N) return 1 ;;
-        *)
+        "")
             if [[ "$default" == "y" ]]; then
                 return 0
             else
                 return 1
             fi
             ;;
+        *) return 1 ;;
     esac
 }
 
@@ -415,7 +441,6 @@ agent_collect_config() {
 
     # Agent 模式设置
     USER_MODE="agent"
-    AUTO_MODE=true
 
     # ===== 步骤 1: 基本信息 =====
     echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -1348,7 +1373,7 @@ TOOLSEOF
                         "accountId": $id
                     }
                 }')
-            jq --argjson newBinding "$NEW_BINDING" '.bindings += [$newBinding]' "$OPENCLAW_CONFIG" > "$OPENCLAW_CONFIG.tmp"
+            jq --argjson newBinding "$NEW_BINDING" '.agents.bindings += [$newBinding]' "$OPENCLAW_CONFIG" > "$OPENCLAW_CONFIG.tmp"
             mv "$OPENCLAW_CONFIG.tmp" "$OPENCLAW_CONFIG"
             echo -e "   ${SUCCESS}✓ Binding 已添加${NC}"
         fi
