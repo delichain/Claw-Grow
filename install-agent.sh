@@ -130,14 +130,12 @@ agent_prompt_choice() {
     echo -e "${BOLD}📝 $prompt_text${NC}"
     echo ""
 
-    # 解析 JSON 数组并显示选项
+    # 解析 JSON 数组并显示选项（简洁版：不显示描述）
     local count=1
     for option in $(echo "$options_json" | jq -r '.[] | @base64'); do
-        local label desc
+        local label
         label=$(echo "$option" | base64 -d | jq -r '.label')
-        desc=$(echo "$option" | base64 -d | jq -r '.description // empty')
         echo "   [$count] $label"
-        [[ -n "$desc" ]] && echo "       $desc"
         ((count++))
     done
 
