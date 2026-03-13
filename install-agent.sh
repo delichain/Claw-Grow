@@ -13,7 +13,7 @@ set -uo pipefail
 # =============================================================================
 
 # ---------- 配置 ----------
-readonly SCRIPT_VERSION="1.1.0"
+readonly SCRIPT_VERSION="1.2.0"
 readonly DEFAULT_MODEL="minimax-portal/MiniMax-M2.5"
 readonly DEFAULT_TOOLS="minimal"
 readonly DEFAULT_AGENT_ID="clawgrow"  # 固定 AgentID
@@ -323,6 +323,22 @@ check_agent_exists() {
 
 collect_config() {
     echo -e "${BOLD}🦞 OpenClaw Agent 安装向导${NC}"
+    echo ""
+
+    # ===== 步骤 0: 选择模式 =====
+    echo -e "${BOLD}👋 步骤 0: 选择模式${NC}"
+    echo "   [1] 我是 Agent (自动执行安装)"
+    echo "   [2] 我是人类 (需要确认后执行)"
+    echo ""
+    read_from_tty -p "   选择 [1-2]: " -r MODE_CHOICE
+    MODE_CHOICE=${MODE_CHOICE:-1}
+    
+    case "$MODE_CHOICE" in
+        1) USER_MODE="agent" ;;
+        2) USER_MODE="human" ;;
+        *) USER_MODE="human" ;;
+    esac
+    echo -e "   ${SUCCESS}✓ 模式: $USER_MODE${NC}"
     echo ""
 
     # 环境变量模式检测
@@ -637,6 +653,19 @@ read_from_tty() {
 }
 
 execute_install() {
+    # 人类模式需要额外确认
+    if [[ "$USER_MODE" == "human" ]]; then
+        echo ""
+        echo -e "${WARN}⚠️ 你选择了人类模式，安装前需要确认。${NC}"
+        prompt_yesno "   确认执行安装?" "y" "CONFIRM_EXECUTE"
+        if [[ "$CONFIRM_EXECUTE" != "true" ]]; then
+            echo ""
+            echo -e "${ERROR}已取消安装${NC}"
+            exit 0
+        fi
+        echo -e "   ${SUCCESS}✓ 开始执行安装...${NC}"
+    fi
+
     if $DRY_RUN; then
         echo ""
         echo -e "${WARN}[DRY RUN] 模拟运行，不实际修改文件${NC}"
