@@ -2,19 +2,19 @@
 set -uo pipefail
 
 # =============================================================================
-# OpenClaw Agent Installer - 安全版
+# OpenClaw Agent Installer - 支持 Agent 对话框交互
 # =============================================================================
 # Usage:
-#   交互模式:    curl -fsSL <url> | bash
+#   终端模式:    curl -fsSL <url> | bash
 #   自动模式:    curl -fsSL <url> | bash -s -- -y
-#   环境变量:    AGENT_ID=pine bash -s <<< ""
+#   Agent模式:   curl -fsSL <url> | bash -s -- --agent-mode
 #   卸载:        curl -fsSL <url> | bash -s -- --uninstall
 #   状态:        curl -fsSL <url> | bash -s -- --status
 # =============================================================================
 
 # ---------- 配置 ----------
-readonly SCRIPT_VERSION="1.2.0"
-readonly DEFAULT_MODEL="minimax-portal/MiniMax-M2.5"
+readonly SCRIPT_VERSION="1.3.0"
+readonly DEFAULT_MODEL="minimax/MiniMax-M2.5"
 readonly DEFAULT_TOOLS="minimal"
 readonly DEFAULT_AGENT_ID="clawgrow"  # 固定 AgentID
 
@@ -29,6 +29,7 @@ NC='\033[0m'
 # ---------- 全局变量 ----------
 FORCE=false
 AUTO_MODE=false
+AGENT_MODE=false
 DRY_RUN=false
 OPERATION="install"
 
@@ -44,8 +45,8 @@ FEISHU_APP_ID=""
 FEISHU_APP_SECRET=""
 TELEGRAM_TOKEN=""
 DISCORD_TOKEN=""
-GROUP_ID=""
-GROUP_MENTION=""
+SLACK_TOKEN=""
+SIGNAL_PATH=""
 
 # ---------- 解析参数 ----------
 parse_args() {
@@ -53,6 +54,7 @@ parse_args() {
         case $1 in
             -y|--yes) AUTO_MODE=true ;;
             -f|--force) FORCE=true ;;
+            --agent-mode) AGENT_MODE=true ;;
             --uninstall) OPERATION="uninstall" ;;
             --status) OPERATION="status" ;;
             --dry-run) DRY_RUN=true ;;
@@ -71,17 +73,123 @@ show_help() {
     echo "选项:"
     echo "  -y, --yes        自动确认所有提示"
     echo "  -f, --force      强制覆盖已存在的 Agent"
+    echo "  --agent-mode     Agent 对话框交互模式"
     echo "  --uninstall      卸载 Agent"
     echo "  --status         查看安装状态"
     echo "  --dry-run        模拟运行"
     echo "  -h, --help       显示帮助"
     echo ""
     echo "环境变量 (静默模式):"
-    echo "  AGENT_ID         Agent ID (必需)"
+    echo "  AGENT_ID         Agent ID (固定为 clawgrow)"
     echo "  AGENT_NAME       显示名称"
     echo "  AGENT_EMOJI      Emoji"
     echo "  MODEL            模型"
     echo "  TOOLS_PROFILE    工具配置"
+}
+
+# ---------- Agent 模式交互函数 ----------
+agent_prompt() {
+    # 在 Agent 模式下提示用户输入
+    local prompt_text="$1"
+    local default="$2"
+    local var_name="$3"
+
+    # 如果环境变量已设置，直接使用
+    if [[ -n "${!var_name:-}" ]]; then
+        eval "$var_name=\${!var_name}"
+        return 0
+    fi
+
+    echo ""
+    echo -e "${BOLD}📝 $prompt_text${NC}"
+    [[ -n "$default" ]] && echo "   (默认值: $default)"
+    echo -n "   > "
+    read -r
+
+    if [[ -n "$REPLY" ]]; then
+        eval "$var_name=\$REPLY"
+    elif [[ -n "$default" ]]; then
+        eval "$var_name=\$default"
+    fi
+
+    echo -e "   ${SUCCESS}✓ $var_name: ${!var_name}${NC}"
+}
+
+agent_prompt_choice() {
+    local prompt_text="$1"
+    local options_json="$2"  # JSON array of options
+    local var_name="$3"
+
+    echo ""
+    echo -e "${BOLD}📝 $prompt_text${NC}"
+    echo ""
+
+    # 解析 JSON 数组并显示选项
+    local count=1
+    for option in $(echo "$options_json" | jq -r '.[] | @base64'); do
+        local label desc
+        label=$(echo "$option" | base64 -d | jq -r '.label')
+        desc=$(echo "$option" | base64 -d | jq -r '.description // empty')
+        echo "   [$count] $label"
+        [[ -n "$desc" ]] && echo "       $desc"
+        ((count++))
+    done
+
+    echo ""
+    echo -n "   请输入选项编号 > "
+    read -r
+
+    if [[ "$REPLY" =~ ^[0-9]+$ ]] && [[ "$REPLY" -ge 1 ]] && [[ "$REPLY" -le $count-1 ]]; then
+        local selected
+        selected=$(echo "$options_json" | jq -r ".[$((REPLY-1))].value")
+        eval "$var_name=\$selected"
+        echo -e "   ${SUCCESS}✓ 已选择: $(echo "$options_json" | jq -r ".[$((REPLY-1))].label")${NC}"
+    else
+        echo -e "${ERROR}无效选择，使用默认值${NC}"
+        eval "$var_name=$(echo "$options_json" | jq -r '.[0].value')"
+    fi
+}
+
+agent_prompt_secret() {
+    local prompt_text="$1"
+    local var_name="$2"
+
+    echo ""
+    echo -e "${BOLD}🔐 $prompt_text${NC}"
+    echo -n "   > "
+    read -rs
+
+    if [[ -n "$REPLY" ]]; then
+        eval "$var_name=\$REPLY"
+    fi
+    echo ""
+    echo -e "   ${SUCCESS}✓ $var_name 已设置${NC}"
+}
+
+agent_confirm() {
+    local prompt_text="$1"
+    local default="$2"  # y or n
+
+    echo ""
+    echo -e "${BOLD}❓ $prompt_text${NC}"
+    if [[ "$default" == "y" ]]; then
+        echo -n "   [Y/n] > "
+    else
+        echo -n "   [y/N] > "
+    fi
+    read -r
+
+    case "$REPLY" in
+        y|Y) return 0 ;;
+        n|N) return 1 ;;
+        *)
+            if [[ "$default" == "y" ]]; then
+                return 0
+            else
+                return 1
+            fi
+            ;;
+    esac
 }
 
 # ---------- 依赖检查 ----------
@@ -200,7 +308,7 @@ parse_uninstall_args() {
     done
 }
 
-# ---------- 交互输入 ----------
+# ---------- 终端交互函数 (原有) ----------
 prompt() {
     local prompt_text="$1"
     local default="$2"
@@ -264,7 +372,7 @@ prompt_yesno() {
     else
         read -p "$prompt_text $choices: " -r
     fi
-    
+
     case "$REPLY" in
         y|Y) eval "$3=true" ;;
         n|N) eval "$3=false" ;;
@@ -272,55 +380,251 @@ prompt_yesno() {
     esac
 }
 
-prompt_choice() {
-    local prompt_text="$1"
-    shift
-    local options=("$@")
-
-    local n=${#options[@]}
-    echo "$prompt_text"
-    for i in "${!options[@]}"; do
-        echo "   [$((i+1))] ${options[$i]}"
-    done
-
-    while true; do
-        # 管道模式时从 /dev/tty 读取
-        if [[ ! -t 0 ]] && [[ -t 1 ]] && [[ -c /dev/tty ]]; then
-            read -p "   > " -r </dev/tty
-        else
-            read -p "   > " -r
-        fi
-        
-        if [[ "$REPLY" =~ ^[1-9]$ ]] && [[ $REPLY -le $n ]]; then
-            eval "$4=\${options[$((REPLY-1))]}"
-            break
-        fi
-    done
+# 管道模式读取函数
+read_from_tty() {
+    if [[ ! -t 0 ]] && [[ -t 1 ]] && [[ -c /dev/tty ]]; then
+        read -r "$@" </dev/tty
+    else
+        read -r "$@"
+    fi
 }
 
 # ---------- 安装主流程 ----------
 cmd_install() {
-    # 先收集信息
-    collect_config
-    
-    # 再检查 Agent 是否存在（不退出，只警告）
+    # 根据模式选择不同的交互方式
+    if [[ "$AGENT_MODE" == true ]]; then
+        agent_collect_config
+    else
+        collect_config
+    fi
+
+    # 检查 Agent 是否存在（不退出，只警告）
     check_agent_exists
 
     # 执行安装
     execute_install
 }
 
-# ---------- 安装前检查（不退出）----------
-check_agent_exists() {
-    if jq --arg id "$AGENT_ID" '.agents.list[] | select(.id == $id)' "$OPENCLAW_CONFIG" > /dev/null 2>&1; then
-        if [[ "$FORCE" == true ]]; then
-            echo -e "${WARN}⚠️ Agent '$AGENT_ID' 已存在，将被覆盖${NC}"
-        else
-            echo -e "${WARN}⚠️ Agent '$AGENT_ID' 已存在，将执行更新${NC}"
-        fi
+# ---------- Agent 模式配置收集 ----------
+agent_collect_config() {
+    echo ""
+    echo -e "${BOLD}🦞 OpenClaw Agent 安装向导${NC}"
+    echo ""
+    echo -e "${SUCCESS}Agent 模式已启用 - 将在对话框中逐步引导${NC}"
+    echo ""
+
+    # Agent 模式设置
+    USER_MODE="agent"
+    AUTO_MODE=true
+
+    # ===== 步骤 1: 基本信息 =====
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}步骤 1: 基本信息${NC}"
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+    AGENT_ID="$DEFAULT_AGENT_ID"
+    echo "   Agent ID: $AGENT_ID (固定)"
+
+    agent_prompt "请输入显示名称" "龙虾成长" "AGENT_NAME"
+    agent_prompt "请输入 Emoji" "🦞" "AGENT_EMOJI"
+
+    echo -e "   ${SUCCESS}✓ $AGENT_ID ($AGENT_NAME $AGENT_EMOJI)${NC}"
+
+    # ===== 步骤 2: 选择模型 =====
+    echo ""
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}步骤 2: 选择模型${NC}"
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+    # 构建模型选项 JSON
+    local models_json
+    models_json=$(cat << 'MODELSEOF'
+[
+  {"label": "Anthropic Claude Opus 4.6 (200k上下文, 推理)", "value": "anthropic/claude-opus-4-6", "description": "推理能力强，适合复杂任务"},
+  {"label": "Anthropic Claude Sonnet 4.6 (200k上下文)", "value": "anthropic/claude-sonnet-4-6", "description": "平衡性能和价格"},
+  {"label": "Anthropic Claude Haiku 4.6 (快速响应)", "value": "anthropic/claude-haiku-4-6", "description": "快速响应，适合简单任务"},
+  {"label": "OpenAI GPT-5.4 (1M上下文, 推理+视觉)", "value": "openai/gpt-5.4", "description": "最新 GPT 模型"},
+  {"label": "OpenAI GPT-5.4 Pro (高性能)", "value": "openai/gpt-5.4-pro", "description": "最高性能"},
+  {"label": "OpenAI O3 (推理模型)", "value": "openai/o3", "description": "推理模型"},
+  {"label": "OpenAI O3 Mini (快速推理)", "value": "openai/o3-mini", "description": "快速推理"},
+  {"label": "MiniMax M2.5 (200k上下文, 推理)", "value": "minimax/MiniMax-M2.5", "description": "高性价比"},
+  {"label": "MiniMax M2.5 高速版", "value": "minimax/MiniMax-M2.5-highspeed", "description": "更快响应"},
+  {"label": "MiniMax M2.5 闪电版", "value": "minimax/MiniMax-M2.5-Lightning", "description": "极速响应"},
+  {"label": "MiniMax VL-01 (视觉模型)", "value": "minimax/MiniMax-VL-01", "description": "支持视觉"},
+  {"label": "Moonshot Kimi K2.5 (256k上下文)", "value": "moonshot/kimi-k2.5", "description": "Kimi 最新模型"},
+  {"label": "Moonshot Kimi K2 Thinking (推理)", "value": "moonshot/kimi-k2-thinking", "description": "Kimi 推理模型"},
+  {"label": "Moonshot Kimi Coding K2.5", "value": "kimi-coding/k2p5", "description": "编程专用"},
+  {"label": "HuggingFace DeepSeek R1 (推理)", "value": "huggingface/deepseek-ai/DeepSeek-R1", "description": "开源推理模型"},
+  {"label": "HuggingFace Qwen3 8B", "value": "huggingface/Qwen/Qwen3-8B", "description": "开源大模型"},
+  {"label": "HuggingFace Llama 3.3 70B", "value": "huggingface/meta-llama/Llama-3.3-70B-Instruct", "description": "Meta 开源模型"},
+  {"label": "Venice Kimi K2.5 (隐私模式)", "value": "venice/kimi-k2-5", "description": "隐私优先"},
+  {"label": "Venice Claude Opus 4.6 (匿名化)", "value": "venice/claude-opus-4-6", "description": "匿名 Claude"},
+  {"label": "Venice Qwen3 Coder 480B", "value": "venice/qwen3-coder-480b-a35b-instruct", "description": "编程专用"},
+  {"label": "Venice Llama 3.3 70B (隐私)", "value": "venice/llama-3.3-70b", "description": "隐私 Llama"},
+  {"label": "Together AI Kimi K2.5", "value": "together/moonshotai/Kimi-K2.5", "description": "Together 路由"},
+  {"label": "Together AI DeepSeek V3", "value": "together/DeepSeek-V3", "description": "DeepSeek V3"},
+  {"label": "Together AI Llama 3.3 70B Turbo", "value": "together/meta-llama/Llama-3.3-70B-Instruct-Turbo", "description": "Llama Turbo"},
+  {"label": "OpenRouter Claude Sonnet 4.5", "value": "openrouter/anthropic/claude-sonnet-4-5", "description": "OpenRouter 聚合"},
+  {"label": "OpenRouter GPT-5.2", "value": "openrouter/openai/gpt-5.2", "description": "OpenRouter GPT"},
+  {"label": "OpenRouter Gemini 3 Pro", "value": "openrouter/google/gemini-3-pro", "description": "Google 模型"},
+  {"label": "Mistral Large", "value": "mistral/mistral-large-latest", "description": "Mistral 旗舰"},
+  {"label": "Mistral Pixtral Large (视觉)", "value": "mistral/pixtral-large-2411", "description": "视觉模型"},
+  {"label": "NVIDIA Nemotron 70B", "value": "nvidia/nvidia/llama-3.1-nemotron-70b-instruct", "description": "NVIDIA 优化"},
+  {"label": "NVIDIA Llama 3.3 70B", "value": "nvidia/meta/llama-3.3-70b-instruct", "description": "NVIDIA Llama"},
+  {"label": "Z.AI GLM-5 (198k上下文)", "value": "zai/glm-5", "description": "智谱 GLM"},
+  {"label": "Z.AI GLM-4.7", "value": "zai/glm-4.7", "description": "智谱旧版"},
+  {"label": "Xiaomi MiMo V2 Flash (262k)", "value": "xiaomi/mimo-v2-flash", "description": "小米 MiMo"},
+  {"label": "Ollama Qwen2.5 14B (本地)", "value": "ollama/qwen2.5:14b", "description": "本地部署"},
+  {"label": "Ollama Llama 3.3 70B (本地)", "value": "ollama/llama3.3:70b", "description": "本地部署"},
+  {"label": "Ollama DeepSeek R1 32B (本地)", "value": "ollama/deepseek-r1:32b", "description": "本地部署"},
+  {"label": "Ollama Phi4 (本地)", "value": "ollama/phi4", "description": "本地部署"},
+  {"label": "vLLM 自定义模型", "value": "vllm/your-model-id", "description": "需配置 vLLM"},
+  {"label": "Kilo Auto (自动路由)", "value": "kilocode/kilo/auto", "description": "智能路由"},
+  {"label": "LiteLLM Claude Opus 4.6", "value": "litellm/claude-opus-4-6", "description": "LiteLLM 代理"}
+]
+MODELSEOF
+)
+
+    agent_prompt_choice "请选择模型" "$models_json" "MODEL"
+    echo -e "   ${SUCCESS}✓ $MODEL${NC}"
+
+    # ===== 步骤 3: 选择工具配置 =====
+    echo ""
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}步骤 3: 选择工具配置${NC}"
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+    local tools_json
+    tools_json=$(cat << 'TOOLSEOF'
+[
+  {"label": "minimal (最小工具集)", "value": "minimal", "description": "适合简单任务"},
+  {"label": "coding (编程工具)", "value": "coding", "description": "适合开发任务"},
+  {"label": "full (全部工具)", "value": "full", "description": "适合复杂任务"}
+]
+TOOLSEOF
+)
+
+    agent_prompt_choice "请选择工具配置" "$tools_json" "TOOLS_PROFILE"
+    echo -e "   ${SUCCESS}✓ $TOOLS_PROFILE${NC}"
+
+    # ===== 步骤 4: 选择通道 =====
+    echo ""
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}步骤 4: 选择通信通道${NC}"
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+    local channels_json
+    channels_json=$(cat << 'CHANNELSEOF'
+[
+  {"label": "飞书 (Feishu)", "value": "feishu", "description": "企业通讯+机器人"},
+  {"label": "Telegram", "value": "telegram", "description": "即时通讯 Bot"},
+  {"label": "Discord", "value": "discord", "description": "社区平台 Bot"},
+  {"label": "Slack", "value": "slack", "description": "企业协作平台"},
+  {"label": "WhatsApp", "value": "whatsapp", "description": "需 QR 配对"},
+  {"label": "Signal", "value": "signal", "description": "加密通讯"},
+  {"label": "LINE", "value": "line", "description": "需插件配置"},
+  {"label": "Mattermost", "value": "mattermost", "description": "需插件配置"},
+  {"label": "Microsoft Teams", "value": "msteams", "description": "需插件配置"},
+  {"label": "Google Chat", "value": "googlechat", "description": "需插件配置"},
+  {"label": "IRC", "value": "irc", "description": "需插件配置"},
+  {"label": "Matrix", "value": "matrix", "description": "需插件配置"},
+  {"label": "Twitch", "value": "twitch", "description": "需插件配置"},
+  {"label": "跳过 (稍后手动配置)", "value": "skip", "description": "暂时不配置通道"}
+]
+CHANNELSEOF
+)
+
+    agent_prompt_choice "请选择通信通道" "$channels_json" "CHANNEL_TYPE"
+
+    # ===== 步骤 4.5: 填写通道配置 =====
+    if [[ "$CHANNEL_TYPE" != "skip" ]]; then
+        echo ""
+        echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${BOLD}步骤 4.5: 填写通道配置${NC}"
+        echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+        case "$CHANNEL_TYPE" in
+            feishu)
+                agent_prompt "请输入飞书账号名" "$AGENT_ID" "FEISHU_ACCOUNT"
+                agent_prompt "请输入 App ID" "" "FEISHU_APP_ID"
+                agent_prompt_secret "请输入 App Secret" "FEISHU_APP_SECRET"
+                ;;
+            telegram)
+                agent_prompt_secret "请输入 Telegram Bot Token" "TELEGRAM_TOKEN"
+                ;;
+            discord)
+                agent_prompt_secret "请输入 Discord Bot Token" "DISCORD_TOKEN"
+                ;;
+            slack)
+                agent_prompt_secret "请输入 Slack Bot Token" "SLACK_TOKEN"
+                ;;
+            signal)
+                agent_prompt "请输入 signal-cli 路径" "/usr/local/bin/signal-cli" "SIGNAL_PATH"
+                ;;
+            *)
+                echo -e "${WARN}该通道暂不支持自动配置，请手动配置${NC}"
+                ;;
+        esac
+    fi
+
+    # ===== 步骤 5: 审核确认 (Agent 模式) =====
+    echo ""
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}步骤 5: 审核确认${NC}"
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo "   即将创建/修改以下文件:"
+    echo "   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "   📁 新建目录:"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/memory/"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/skills/"
+    echo "      ~/.openclaw/agents/$AGENT_ID/agent/"
+    echo "      ~/.openclaw/agents/$AGENT_ID/sessions/"
+    echo ""
+    echo "   📝 新建文件:"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/SOUL.md"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/USER.md"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/IDENTITY.md"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/AGENTS.md"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/BOOTSTRAP.md"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/HEARTBEAT.md"
+    echo "      ~/.openclaw/workspace-$AGENT_ID/TOOLS.md"
+    echo ""
+    echo "   ⚙️  修改文件:"
+    echo "      ~/.openclaw/openclaw.json (添加 Agent 和 Binding)"
+    if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
+        echo "      ~/.openclaw/openclaw.json (添加飞书账号: $FEISHU_ACCOUNT)"
+    elif [[ "$CHANNEL_TYPE" == "telegram" ]]; then
+        echo "      ~/.openclaw/openclaw.json (添加 Telegram Bot)"
+    elif [[ "$CHANNEL_TYPE" == "discord" ]]; then
+        echo "      ~/.openclaw/openclaw.json (添加 Discord Bot)"
+    fi
+    echo ""
+    echo "   🔄 执行操作:"
+    echo "      - 复制 API 配置文件"
+    echo "      - openclaw gateway restart"
+    echo "   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+
+    echo "   配置摘要:"
+    echo "   - Agent ID: $AGENT_ID"
+    echo "   - 名称: $AGENT_NAME $AGENT_EMOJI"
+    echo "   - 模型: $MODEL"
+    echo "   - 工具: $TOOLS_PROFILE"
+    echo "   - 通道: ${CHANNEL_TYPE:-跳过}"
+    echo ""
+
+    if agent_confirm "确认执行安装?" "y"; then
+        echo -e "   ${SUCCESS}✓ 开始执行安装...${NC}"
+    else
+        echo ""
+        echo -e "${ERROR}已取消安装${NC}"
+        exit 0
     fi
 }
 
+# ---------- 终端模式配置收集 (原有) ----------
 collect_config() {
     echo -e "${BOLD}🦞 OpenClaw Agent 安装向导${NC}"
     echo ""
@@ -332,7 +636,7 @@ collect_config() {
     echo ""
     read_from_tty -p "   选择 [1-2]: " -r MODE_CHOICE
     MODE_CHOICE=${MODE_CHOICE:-1}
-    
+
     case "$MODE_CHOICE" in
         1) USER_MODE="agent" ;;
         2) USER_MODE="human" ;;
@@ -350,20 +654,10 @@ collect_config() {
     echo -e "${BOLD}📛 步骤 1: 基本信息${NC}"
     AGENT_ID="$DEFAULT_AGENT_ID"
     echo "   Agent ID: $AGENT_ID (固定)"
-    prompt "   显示名称 (例如: 龙虾成长)" "$DEFAULT_AGENT_ID" "AGENT_NAME"
+    prompt "   显示名称 (例如: 龙虾成长)" "龙虾成长" "AGENT_NAME"
     prompt "   Emoji (例如: 🦞)" "🦞" "AGENT_EMOJI"
 
     echo -e "   ${SUCCESS}✓ $AGENT_ID ($AGENT_NAME $AGENT_EMOJI)${NC}"
-
-# 管道模式读取函数
-read_from_tty() {
-    if [[ ! -t 0 ]] && [[ -t 1 ]] && [[ -c /dev/tty ]]; then
-        read -r "$@" </dev/tty
-    else
-        read -r "$@"
-    fi
-}
-
 
     # 步骤 2: Model (选项式)
     echo ""
@@ -442,7 +736,7 @@ read_from_tty() {
     echo ""
     read_from_tty -p "   选择 [1-41]: " -r MODEL_CHOICE
     MODEL_CHOICE=${MODEL_CHOICE:-1}
-    
+
     case "$MODEL_CHOICE" in
         1)  MODEL="anthropic/claude-opus-4-6" ;;
         2)  MODEL="anthropic/claude-sonnet-4-6" ;;
@@ -498,7 +792,7 @@ read_from_tty() {
     echo ""
     read_from_tty -p "   选择 [1-3]: " -r TOOLS_CHOICE
     TOOLS_CHOICE=${TOOLS_CHOICE:-1}
-    
+
     case "$TOOLS_CHOICE" in
         1) TOOLS_PROFILE="minimal" ;;
         2) TOOLS_PROFILE="coding" ;;
@@ -528,7 +822,7 @@ read_from_tty() {
     echo ""
     read_from_tty -p "   选择 [1-14]: " -r CHANNEL_CHOICE
     CHANNEL_CHOICE=${CHANNEL_CHOICE:-14}
-    
+
     case "$CHANNEL_CHOICE" in
         1)
             CHANNEL_TYPE="feishu"
@@ -643,7 +937,7 @@ read_from_tty() {
     echo "   - 通道: ${CHANNEL_TYPE:-跳过}"
     echo ""
     prompt_yesno "   确认执行安装?" "y" "CONFIRM_INSTALL"
-    
+
     if [[ "$CONFIRM_INSTALL" != "true" ]]; then
         echo ""
         echo -e "${ERROR}已取消安装${NC}"
@@ -652,6 +946,18 @@ read_from_tty() {
     echo -e "   ${SUCCESS}✓ 开始执行安装...${NC}"
 }
 
+# ---------- 安装前检查（不退出）----------
+check_agent_exists() {
+    if jq --arg id "$AGENT_ID" '.agents.list[] | select(.id == $id)' "$OPENCLAW_CONFIG" > /dev/null 2>&1; then
+        if [[ "$FORCE" == true ]]; then
+            echo -e "${WARN}⚠️ Agent '$AGENT_ID' 已存在，将被覆盖${NC}"
+        else
+            echo -e "${WARN}⚠️ Agent '$AGENT_ID' 已存在，将执行更新${NC}"
+        fi
+    fi
+}
+
+# ---------- 执行安装 ----------
 execute_install() {
     # 人类模式需要额外确认
     if [[ "$USER_MODE" == "human" ]]; then
@@ -687,7 +993,7 @@ execute_install() {
         mkdir -p "$WORKSPACE_DIR/skills"
         mkdir -p "$AGENT_DIR"
         mkdir -p "$HOME/.openclaw/agents/$AGENT_ID/sessions"
-        
+
         # 复制当前用户的 API 配置（从任意已有 agent）
         SOURCE_PATH=$(ls "$HOME/.openclaw/agents/"*/agent/auth-profiles.json 2>/dev/null | head -1)
         if [[ -n "$SOURCE_PATH" ]]; then
@@ -760,11 +1066,11 @@ SOULEOF
         cat > "$WORKSPACE_DIR/USER.md" << 'USEREOF'
 # USER.md - About Your Human
 
-- **Name:** 
-- **What to call them:** 
+- **Name:**
+- **What to call them:**
 - **Pronouns:** (optional)
-- **Timezone:** 
-- **Notes:** 
+- **Timezone:**
+- **Notes:**
 
 ## Context
 
@@ -780,15 +1086,15 @@ USEREOF
         cat > "$WORKSPACE_DIR/IDENTITY.md" << 'IDENTITYEOF'
 # IDENTITY.md - Who Am I?
 
-- **Name:** 
+- **Name:**
   (pick something you like)
-- **Creature:** 
+- **Creature:**
   (AI? robot? familiar? ghost in the machine? something weirder?)
-- **Vibe:** 
+- **Vibe:**
   (how do you come across? sharp? warm? chaotic? calm?)
-- **Emoji:** 
+- **Emoji:**
   (your signature — pick one that feels right)
-- **Avatar:** 
+- **Avatar:**
   (workspace-relative path, http(s) URL, or data URI)
 
 ---
@@ -1071,6 +1377,13 @@ TOOLSEOF
                 "$OPENCLAW_CONFIG" > "$OPENCLAW_CONFIG.tmp"
             mv "$OPENCLAW_CONFIG.tmp" "$OPENCLAW_CONFIG"
             echo -e "   ${SUCCESS}✓ Discord Bot 已配置${NC}"
+
+        elif [[ "$CHANNEL_TYPE" == "slack" ]]; then
+            jq --arg token "$SLACK_TOKEN" \
+                '.channels.slack = {"enabled": true, "botToken": $token}' \
+                "$OPENCLAW_CONFIG" > "$OPENCLAW_CONFIG.tmp"
+            mv "$OPENCLAW_CONFIG.tmp" "$OPENCLAW_CONFIG"
+            echo -e "   ${SUCCESS}✓ Slack Bot 已配置${NC}"
         fi
     fi
 
