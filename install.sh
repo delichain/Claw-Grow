@@ -230,6 +230,12 @@ execute_install() {
             sed -i "" "s/{{AGENT_EMOJI}}/$AGENT_EMOJI/g" "$workspace/USER.md" 2>/dev/null || true
         fi
         
+        # 复制 skills 文件夹（如果存在）
+        if [[ -d "$temp_dir/skills" ]]; then
+            cp -r "$temp_dir/skills" "$workspace/skills"
+            echo "   ✓ 已下载 skills 文件夹"
+        fi
+        
         rm -rf "$temp_dir"
         echo "   ✓ 已下载身份文件模板"
     else

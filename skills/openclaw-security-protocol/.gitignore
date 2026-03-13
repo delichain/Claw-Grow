@@ -1,0 +1,9 @@
+# 忽略敏感文件
+*.log
+*.tmp
+*.bak*
+.env
+credentials/
+memory/
+agents/
+devices/paired.json
