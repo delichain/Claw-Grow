@@ -1361,11 +1361,6 @@ TOOLSEOF
         mv "$OPENCLAW_CONFIG.tmp" "$OPENCLAW_CONFIG"
         echo -e "   ${SUCCESS}✓ Agent 已添加到列表${NC}"
 
-<<<<<<< HEAD
-        # 添加 Bindings
-        # OpenClaw 不使用 bindings，只需配置 channel 账号
-        # (bindings 功能已被移除)
-=======
         # 添加 Bindings（根层级）
         if [[ -n "$CHANNEL_TYPE" && "$CHANNEL_TYPE" != "skip" ]]; then
             NEW_BINDING=$(jq -n \
@@ -1382,7 +1377,6 @@ TOOLSEOF
             mv "$OPENCLAW_CONFIG.tmp" "$OPENCLAW_CONFIG"
             echo -e "   ${SUCCESS}✓ Binding 已添加${NC}"
         fi
->>>>>>> 2aaf2ca (fix: 恢复bindings写入，使用根层级路径)
 
         # Channel 配置
         if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
@@ -1416,6 +1410,18 @@ TOOLSEOF
             mv "$OPENCLAW_CONFIG.tmp" "$OPENCLAW_CONFIG"
             echo -e "   ${SUCCESS}✓ Slack Bot 已配置${NC}"
         fi
+    fi
+
+    # 重启 Gateway
+    echo ""
+    echo -e "${BOLD}🔄 步骤 8: 重启 Gateway${NC}"
+
+    if $DRY_RUN; then
+        echo "   [DRY] openclaw gateway restart &"
+    else
+        # 后台重启，不阻塞当前Agent会话
+        openclaw gateway restart >/dev/null 2>&1 &
+        echo -e "   ${SUCCESS}✓ Gateway 重启命令已发送 (后台执行)${NC}"
     fi
 
     # 完成
