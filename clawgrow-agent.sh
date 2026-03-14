@@ -23,6 +23,11 @@ AGENT_EMOJI=""
 MODEL=""
 CHANNEL_TYPE=""
 FEISHU_ACCOUNT=""
+FEISHU_APP_ID=""
+FEISHU_APP_SECRET=""
+TELEGRAM_TOKEN=""
+DISCORD_TOKEN=""
+CUSTOM_API_KEY=""
 
 # ---------- 解析参数 ----------
 parse_args() {
@@ -178,8 +183,9 @@ EOF
 
     # 显示通道配置代码
     if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
-        prompt "请输入飞书账号名" "$AGENT_ID" "FEISHU_ACCOUNT"
-        
+        # 飞书账号固定为 agentID
+        FEISHU_ACCOUNT="$AGENT_ID"
+
         echo ""
         echo -e "${BOLD}📋 飞书配置代码${NC}"
         echo ""
@@ -274,28 +280,14 @@ execute_install() {
     fi
     echo "   ✓ Agent 创建成功"
 
-    # 2. 提示用户登录 channel
-    if [[ "$CHANNEL_TYPE" != "skip" ]]; then
-        echo ""
-        echo "   [2/4] Channel 登录..."
-        echo ""
-        echo -e "${WARN}⚠️ 请运行以下命令登录 channel:${NC}"
-        echo ""
-        echo "   openclaw channels login --channel $CHANNEL_TYPE --account ${FEISHU_ACCOUNT:-$AGENT_ID}"
-        echo ""
-        echo -e "${WARN}   登录完成后再继续...${NC}"
-        echo -n "   按回车继续 > "
-        read -r
-    fi
-
-    # 3. 更新 openclaw.json（bindings + agentToAgent）
+    # 2. 更新 openclaw.json（channels + bindings + agentToAgent）
     echo ""
-    echo "   [3/4] 更新配置文件..."
+    echo "   [2/4] 更新配置文件..."
     update_openclaw_json
 
-    # 4. 安装 Skills（可选）
+    # 3. 安装 Skills（可选）
     echo ""
-    echo "   [4/4] Skills 安装..."
+    echo "   [3/4] Skills 安装..."
     install_skills
 
     # 5. 提示重启
@@ -312,19 +304,106 @@ execute_install() {
 update_openclaw_json() {
     local json_file="$HOME/.openclaw/openclaw.json"
     local agent_id="$AGENT_ID"
-    
-    # 1. 更新 tools.agentToAgent.allow
-    if [[ -f "$json_file" ]]; then
-        local current_allow
-        current_allow=$(jq -r '.tools.agentToAgent.allow[]' "$json_file" 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-        
-        if ! echo "$current_allow" | grep -q "$agent_id"; then
-            jq --arg agent "$agent_id" '.tools.agentToAgent.allow += [$agent]' "$json_file" > tmp_$$.json && mv tmp_$$.json "$json_file"
-            echo "   ✓ 已添加到 tools.agentToAgent.allow"
-        fi
+    local home_dir="$HOME"
+
+    # 1. 更新 agents.list（添加完整 Agent 配置）
+    local agent_json=$(cat << EOF
+{
+  "id": "$agent_id",
+  "name": "$AGENT_NAME $AGENT_EMOJI",
+  "workspace": "$home_dir/.openclaw/workspace-$agent_id",
+  "agentDir": "$home_dir/.openclaw/agents/$agent_id/agent",
+  "model": "$MODEL",
+  "tools": {
+    "profile": "full",
+    "alsoAllow": [
+      "read",
+      "write",
+      "apply_patch",
+      "edit",
+      "exec",
+      "process",
+      "web_fetch",
+      "web_search",
+      "memory_search",
+      "memory_get",
+      "sessions_list",
+      "sessions_history",
+      "sessions_spawn",
+      "sessions_send",
+      "subagents",
+      "message",
+      "agents_list",
+      "cron",
+      "nodes",
+      "image",
+      "tts",
+      "feishu_app_scopes",
+      "feishu_bitable_create_app",
+      "feishu_bitable_create_record",
+      "feishu_bitable_create_field",
+      "feishu_bitable_get_meta",
+      "feishu_bitable_get_record",
+      "feishu_bitable_list_records",
+      "feishu_bitable_list_fields",
+      "feishu_bitable_update_record",
+      "feishu_chat",
+      "feishu_doc",
+      "feishu_drive",
+      "feishu_wiki"
+    ],
+    "deny": [
+      "gateway"
+    ]
+  }
+}
+EOF
+    )
+
+    # 检查是否已存在，不存在则添加
+    if jq --arg id "$agent_id" '.agents.list[] | select(.id == $id)' "$json_file" > /dev/null 2>&1; then
+        echo "   ⚠️ Agent $agent_id 已存在，跳过添加"
+    else
+        jq --argjson agent "$agent_json" '.agents.list += [$agent]' "$json_file" > "tmp_$$.json" && mv "tmp_$$.json" "$json_file"
+        echo "   ✓ 已添加 Agent 到 agents.list"
     fi
-    
-    # 2. 更新 bindings
+
+    # 2. 更新 tools.agentToAgent.allow
+    local current_allow
+    current_allow=$(jq -r '.tools.agentToAgent.allow[]' "$json_file" 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+
+    if ! echo "$current_allow" | grep -q "$agent_id"; then
+        jq --arg agent "$agent_id" '.tools.agentToAgent.allow += [$agent]' "$json_file" > "tmp_$$.json" && mv "tmp_$$.json" "$json_file"
+        echo "   ✓ 已添加到 tools.agentToAgent.allow"
+    fi
+
+    # 3. 更新 channels（飞书账户配置）
+    if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
+        local account_id="${FEISHU_ACCOUNT:-$agent_id}"
+        local feishu_account_json=$(cat << EOF
+{
+  "appId": "$FEISHU_APP_ID",
+  "appSecret": "$FEISHU_APP_SECRET",
+  "groups": {
+    "default": {
+      "requireMention": true
+    }
+  }
+}
+EOF
+        )
+        jq --arg account "$account_id" --argjson val "$feishu_account_json" \
+            '.channels.feishu.accounts[$account] = $val' "$json_file" > "tmp_$$.json" && mv "tmp_$$.json" "$json_file"
+        echo "   ✓ 已添加飞书账户到 channels"
+
+    elif [[ "$CHANNEL_TYPE" == "telegram" ]]; then
+        echo "   ✓ Telegram 通道配置完成"
+
+    elif [[ "$CHANNEL_TYPE" == "discord" ]]; then
+        echo "   ✓ Discord 通道配置完成"
+    fi
+
+    # 4. 更新 bindings
     if [[ "$CHANNEL_TYPE" != "skip" ]]; then
         local account_id="${FEISHU_ACCOUNT:-$agent_id}"
         local binding_json=$(cat << EOF
@@ -337,7 +416,7 @@ update_openclaw_json() {
 }
 EOF
         )
-        jq --argjson binding "$binding_json" '.bindings += [$binding]' "$json_file" > tmp_$$.json && mv tmp_$$.json "$json_file"
+        jq --argjson binding "$binding_json" '.bindings += [$binding]' "$json_file" > "tmp_$$.json" && mv "tmp_$$.json" "$json_file"
         echo "   ✓ 已添加 binding: $CHANNEL_TYPE:$account_id"
     fi
 }
