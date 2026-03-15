@@ -8,6 +8,8 @@ set -uo pipefail
 
 readonly SCRIPT_VERSION="1.0.0"
 readonly SCRIPT_NAME="clawgrow-agent"
+readonly REPO_TARBALL_URL="https://codeload.github.com/delichain/Claw-Grow/tar.gz/refs/heads/main"
+readonly REPO_NAME="Claw-Grow"
 
 # ---------- 颜色 ----------
 BOLD='\033[1m'
@@ -280,7 +282,7 @@ execute_install() {
     echo ""
 
     # 1. 调用 openclaw agents add（官方命令，自动创建 workspace + 身份文件）
-    echo "   [1/3] 调用官方命令创建 Agent..."
+    echo "   [1/4] 调用官方命令创建 Agent..."
     local cmd="openclaw agents add $AGENT_ID --workspace ~/.openclaw/workspace-$AGENT_ID --model $MODEL --non-interactive"
 
     if [[ "$CHANNEL_TYPE" != "skip" ]]; then
@@ -300,12 +302,17 @@ execute_install() {
     fi
     echo "   ✓ Agent 创建成功"
 
-    # 2. 更新 openclaw.json（channels + bindings + agentToAgent）
+    # 2. 同步仓库配置到 workspace
     echo ""
-    echo "   [2/3] 更新配置文件..."
+    echo "   [2/4] 同步仓库配置..."
+    sync_workspace_from_repo
+
+    # 3. 更新 openclaw.json（channels + bindings + agentToAgent）
+    echo ""
+    echo "   [3/4] 更新配置文件..."
     update_openclaw_json
 
-    # 3. 提示重启
+    # 4. 提示重启
     echo ""
     echo -e "${SUCCESS}✓ 安装完成！${NC}"
     echo ""
@@ -313,6 +320,77 @@ execute_install() {
     echo "   openclaw gateway restart"
     echo ""
     echo "然后就可以通过 $CHANNEL_TYPE 跟 $AGENT_NAME 聊天了！"
+}
+
+# ---------- 同步仓库配置 ----------
+sync_workspace_from_repo() {
+    local workspace="$HOME/.openclaw/workspace-$AGENT_ID"
+
+    if ! command -v curl >/dev/null 2>&1; then
+        echo -e "${ERROR}缺少依赖: curl${NC}"
+        exit 1
+    fi
+    if ! command -v tar >/dev/null 2>&1; then
+        echo -e "${ERROR}缺少依赖: tar${NC}"
+        exit 1
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d 2>/dev/null || mktemp -d -t clawgrow)
+    local tarball="$tmp_dir/repo.tgz"
+
+    if ! curl -fsSL "$REPO_TARBALL_URL" -o "$tarball"; then
+        echo -e "${ERROR}下载仓库失败${NC}"
+        rm -rf "$tmp_dir"
+        exit 1
+    fi
+
+    if ! tar -xzf "$tarball" -C "$tmp_dir"; then
+        echo -e "${ERROR}解压仓库失败${NC}"
+        rm -rf "$tmp_dir"
+        exit 1
+    fi
+
+    local repo_root
+    repo_root=$(find "$tmp_dir" -maxdepth 1 -type d -name "${REPO_NAME}-*" | head -n 1)
+    if [[ -z "$repo_root" ]]; then
+        echo -e "${ERROR}未找到仓库目录${NC}"
+        rm -rf "$tmp_dir"
+        exit 1
+    fi
+
+    mkdir -p "$workspace"
+
+    local files=(AGENTS.md BOOTSTRAP.md SOUL.md TOOLS.md USER.md IDENTITY.md HEARTBEAT.md)
+    local f
+    for f in "${files[@]}"; do
+        if [[ -f "$repo_root/$f" ]]; then
+            cp -f "$repo_root/$f" "$workspace/$f"
+            echo "   ✓ 已同步 $f"
+        fi
+    done
+
+    if [[ -d "$repo_root/skills" ]]; then
+        mkdir -p "$workspace/skills"
+        if command -v rsync >/dev/null 2>&1; then
+            rsync -a "$repo_root/skills/" "$workspace/skills/"
+        else
+            cp -a "$repo_root/skills/." "$workspace/skills/"
+        fi
+        echo "   ✓ 已同步 skills"
+    fi
+
+    if [[ -d "$repo_root/memory" ]]; then
+        mkdir -p "$workspace/memory"
+        if command -v rsync >/dev/null 2>&1; then
+            rsync -a "$repo_root/memory/" "$workspace/memory/"
+        else
+            cp -a "$repo_root/memory/." "$workspace/memory/"
+        fi
+        echo "   ✓ 已同步 memory"
+    fi
+
+    rm -rf "$tmp_dir"
 }
 
 # ---------- 更新 openclaw.json ----------
