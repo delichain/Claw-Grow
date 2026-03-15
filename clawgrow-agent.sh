@@ -126,6 +126,31 @@ prompt_choice() {
     fi
 }
 
+build_channels_json() {
+    cat << 'EOF'
+[
+  {"label": "WhatsApp", "value": "whatsapp"},
+  {"label": "Telegram", "value": "telegram"},
+  {"label": "Discord", "value": "discord"},
+  {"label": "Slack", "value": "slack"},
+  {"label": "Signal", "value": "signal"},
+  {"label": "iMessage (legacy)", "value": "imessage"},
+  {"label": "IRC", "value": "irc"},
+  {"label": "LINE", "value": "line"},
+  {"label": "Google Chat", "value": "googlechat"},
+  {"label": "Mattermost", "value": "mattermost"},
+  {"label": "Matrix", "value": "matrix"},
+  {"label": "Nextcloud Talk", "value": "nextcloud-talk"},
+  {"label": "BlueBubbles", "value": "bluebubbles"},
+  {"label": "Zalo", "value": "zalo"},
+  {"label": "Zalo User", "value": "zalouser"},
+  {"label": "Nostr", "value": "nostr"},
+  {"label": "飞书 (Feishu)", "value": "feishu"},
+  {"label": "跳过", "value": "skip"}
+]
+EOF
+}
+
 # ---------- 安装流程 ----------
 install() {
     echo ""
@@ -192,63 +217,68 @@ EOF
     echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
     local channels_json
-    channels_json=$(cat << 'EOF'
-[
-  {"label": "飞书 (Feishu)", "value": "feishu"},
-  {"label": "Telegram", "value": "telegram"},
-  {"label": "Discord", "value": "discord"},
-  {"label": "跳过", "value": "skip"}
-]
-EOF
-    )
-    prompt_choice "请选择通信通道" "$channels_json" "CHANNEL_TYPE"
+    channels_json=$(build_channels_json)
 
-    # 显示通道配置代码
-    if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
-        # 飞书账号固定为 agentID
-        FEISHU_ACCOUNT="$AGENT_ID"
+    while true; do
+        prompt_choice "请选择通信通道" "$channels_json" "CHANNEL_TYPE"
 
-        echo ""
-        echo -e "${BOLD}📋 飞书配置代码${NC}"
-        echo ""
-        echo "   你需要准备以下信息："
-        echo "   - appId: 飞书应用 ID"
-        echo "   - appSecret: 飞书应用密钥"
-        echo ""
-        echo "   获取方式："
-        echo "   1. 打开 https://open.feishu.cn/"
-        echo "   2. 创建应用 → 找到应用详情"
-        echo "   3. 在'凭证与基础信息'中获取 App ID 和 App Secret"
-        echo ""
-        prompt "请输入飞书 App ID" "" "FEISHU_APP_ID"
-        prompt "请输入飞书 App Secret" "" "FEISHU_APP_SECRET"
-        
-    elif [[ "$CHANNEL_TYPE" == "telegram" ]]; then
-        echo ""
-        echo -e "${BOLD}📋 Telegram 配置代码${NC}"
-        echo ""
-        echo "   你需要准备以下信息："
-        echo "   - botToken: Telegram Bot Token"
-        echo ""
-        echo "   获取方式："
-        echo "   1. @BotFather 创建新机器人"
-        echo "   2. 获取 Bot Token"
-        echo ""
-        prompt "请输入 Telegram Bot Token" "" "TELEGRAM_TOKEN"
-        
-    elif [[ "$CHANNEL_TYPE" == "discord" ]]; then
-        echo ""
-        echo -e "${BOLD}📋 Discord 配置代码${NC}"
-        echo ""
-        echo "   你需要准备以下信息："
-        echo "   - token: Discord Bot Token"
-        echo ""
-        echo "   获取方式："
-        echo "   1. https://discord.com/developers/applications"
-        echo "   2. 创建应用 → Bot → 获取 Token"
-        echo ""
-        prompt "请输入 Discord Bot Token" "" "DISCORD_TOKEN"
-    fi
+        # 显示通道配置代码
+        if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
+            # 飞书账号固定为 agentID
+            FEISHU_ACCOUNT="$AGENT_ID"
+
+            echo ""
+            echo -e "${BOLD}📋 飞书配置代码${NC}"
+            echo ""
+            echo "   你需要准备以下信息："
+            echo "   - appId: 飞书应用 ID"
+            echo "   - appSecret: 飞书应用密钥"
+            echo ""
+            echo "   获取方式："
+            echo "   1. 打开 https://open.feishu.cn/"
+            echo "   2. 创建应用 → 找到应用详情"
+            echo "   3. 在'凭证与基础信息'中获取 App ID 和 App Secret"
+            echo ""
+            prompt "请输入飞书 App ID" "" "FEISHU_APP_ID"
+            prompt "请输入飞书 App Secret" "" "FEISHU_APP_SECRET"
+            break
+
+        elif [[ "$CHANNEL_TYPE" == "telegram" ]]; then
+            echo ""
+            echo -e "${BOLD}📋 Telegram 配置代码${NC}"
+            echo ""
+            echo "   你需要准备以下信息："
+            echo "   - botToken: Telegram Bot Token"
+            echo ""
+            echo "   获取方式："
+            echo "   1. @BotFather 创建新机器人"
+            echo "   2. 获取 Bot Token"
+            echo ""
+            prompt "请输入 Telegram Bot Token" "" "TELEGRAM_TOKEN"
+            break
+
+        elif [[ "$CHANNEL_TYPE" == "discord" ]]; then
+            echo ""
+            echo -e "${BOLD}📋 Discord 配置代码${NC}"
+            echo ""
+            echo "   你需要准备以下信息："
+            echo "   - token: Discord Bot Token"
+            echo ""
+            echo "   获取方式："
+            echo "   1. https://discord.com/developers/applications"
+            echo "   2. 创建应用 → Bot → 获取 Token"
+            echo ""
+            prompt "请输入 Discord Bot Token" "" "DISCORD_TOKEN"
+            break
+
+        elif [[ "$CHANNEL_TYPE" == "skip" ]]; then
+            break
+        else
+            echo ""
+            echo -e "${WARN}此通道需要自行完成配置，脚本只会写入绑定信息${NC}"
+            break
+        fi
+    done
 
     # 步骤 4: 确认安装
     echo ""
@@ -284,14 +314,6 @@ execute_install() {
     # 1. 调用 openclaw agents add（官方命令，自动创建 workspace + 身份文件）
     echo "   [1/4] 调用官方命令创建 Agent..."
     local cmd="openclaw agents add $AGENT_ID --workspace ~/.openclaw/workspace-$AGENT_ID --model $MODEL --non-interactive"
-
-    if [[ "$CHANNEL_TYPE" != "skip" ]]; then
-        if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
-            cmd="$cmd --bind feishu:$FEISHU_ACCOUNT"
-        else
-            cmd="$cmd --bind $CHANNEL_TYPE"
-        fi
-    fi
 
     echo "   执行: $cmd"
     eval $cmd
@@ -473,33 +495,34 @@ EOF
     # 3. 更新 channels（飞书账户配置）
     if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
         local account_id="${FEISHU_ACCOUNT:-$agent_id}"
-        local feishu_account_json=$(cat << EOF
-{
-  "appId": "$FEISHU_APP_ID",
-  "appSecret": "$FEISHU_APP_SECRET",
-  "groups": {
-    "default": {
-      "requireMention": true
-    }
-  }
-}
-EOF
-        )
-        jq --arg account "$account_id" --argjson val "$feishu_account_json" \
-            '.channels.feishu.accounts[$account] = $val' "$json_file" > "tmp_$$.json" && mv "tmp_$$.json" "$json_file"
+        jq --arg account "$account_id" --arg appId "$FEISHU_APP_ID" --arg appSecret "$FEISHU_APP_SECRET" \
+            '.channels.feishu.enabled = true
+             | .channels.feishu.accounts[$account].appId = $appId
+             | .channels.feishu.accounts[$account].appSecret = $appSecret' \
+            "$json_file" > "tmp_$$.json" && mv "tmp_$$.json" "$json_file"
         echo "   ✓ 已添加飞书账户到 channels"
 
     elif [[ "$CHANNEL_TYPE" == "telegram" ]]; then
+        jq --arg token "$TELEGRAM_TOKEN" \
+            '.channels.telegram.enabled = true
+             | .channels.telegram.botToken = $token' \
+            "$json_file" > "tmp_$$.json" && mv "tmp_$$.json" "$json_file"
         echo "   ✓ Telegram 通道配置完成"
 
     elif [[ "$CHANNEL_TYPE" == "discord" ]]; then
+        jq --arg token "$DISCORD_TOKEN" \
+            '.channels.discord.enabled = true
+             | .channels.discord.token = $token' \
+            "$json_file" > "tmp_$$.json" && mv "tmp_$$.json" "$json_file"
         echo "   ✓ Discord 通道配置完成"
     fi
 
     # 4. 更新 bindings
     if [[ "$CHANNEL_TYPE" != "skip" ]]; then
-        local account_id="${FEISHU_ACCOUNT:-$agent_id}"
-        local binding_json=$(cat << EOF
+        local binding_json
+        if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
+            local account_id="${FEISHU_ACCOUNT:-$agent_id}"
+            binding_json=$(cat << EOF
 {
   "agentId": "$agent_id",
   "match": {
@@ -508,9 +531,24 @@ EOF
   }
 }
 EOF
-        )
+            )
+        else
+            binding_json=$(cat << EOF
+{
+  "agentId": "$agent_id",
+  "match": {
+    "channel": "$CHANNEL_TYPE"
+  }
+}
+EOF
+            )
+        fi
         jq --argjson binding "$binding_json" '.bindings += [$binding]' "$json_file" > "tmp_$$.json" && mv "tmp_$$.json" "$json_file"
-        echo "   ✓ 已添加 binding: $CHANNEL_TYPE:$account_id"
+        if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
+            echo "   ✓ 已添加 binding: $CHANNEL_TYPE:$account_id"
+        else
+            echo "   ✓ 已添加 binding: $CHANNEL_TYPE"
+        fi
     fi
 }
 
