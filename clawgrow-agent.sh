@@ -17,6 +17,7 @@ WARN='\033[38;2;255;176;32m'
 NC='\033[0m'
 
 # ---------- 全局变量 ----------
+AUTO_MODE=false
 AGENT_ID="clawgrow"
 AGENT_NAME=""
 AGENT_EMOJI=""
@@ -52,6 +53,25 @@ show_help() {
 }
 
 # ---------- 交互函数 ----------
+read_reply() {
+    if [[ "${AUTO_MODE}" == "true" ]]; then
+        REPLY=""
+        return
+    fi
+    if [[ -t 0 ]]; then
+        read -r
+        return
+    fi
+
+    if [[ -r /dev/tty ]]; then
+        read -r </dev/tty
+        return
+    fi
+
+    echo -e "${ERROR}未检测到可交互终端，无法继续。请在终端执行或使用 -y 自动模式${NC}" >&2
+    exit 1
+}
+
 prompt() {
     local prompt_text="$1"
     local default="$2"
@@ -61,7 +81,7 @@ prompt() {
     echo -e "${BOLD}📝 $prompt_text${NC}"
     [[ -n "$default" ]] && echo "   (默认值: $default)"
     echo -n "   > "
-    read -r
+    read_reply
 
     if [[ -n "$REPLY" ]]; then
         eval "$var_name=\$REPLY"
@@ -91,7 +111,7 @@ prompt_choice() {
 
     echo ""
     echo -n "   请输入选项编号 > "
-    read -r
+    read_reply
 
     if [[ "$REPLY" =~ ^[0-9]+$ ]] && [[ "$REPLY" -ge 1 ]] && [[ "$REPLY" -le $count-1 ]]; then
         local selected
@@ -153,7 +173,7 @@ EOF
     echo "   [2] 粘贴新的 API Key"
     echo ""
     echo -n "   请选择 > "
-    read -r
+    read_reply
 
     if [[ "$REPLY" == "2" ]]; then
         prompt "请粘贴 API Key" "" "CUSTOM_API_KEY"
@@ -242,7 +262,7 @@ EOF
 
     local confirm
     echo -n "   确认安装? [Y/n] > "
-    read -r
+    read_reply
     confirm=${REPLY:-y}
 
     if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
@@ -260,7 +280,7 @@ execute_install() {
     echo ""
 
     # 1. 调用 openclaw agents add（官方命令，自动创建 workspace + 身份文件）
-    echo "   [1/4] 调用官方命令创建 Agent..."
+    echo "   [1/3] 调用官方命令创建 Agent..."
     local cmd="openclaw agents add $AGENT_ID --workspace ~/.openclaw/workspace-$AGENT_ID --model $MODEL --non-interactive"
 
     if [[ "$CHANNEL_TYPE" != "skip" ]]; then
@@ -282,15 +302,10 @@ execute_install() {
 
     # 2. 更新 openclaw.json（channels + bindings + agentToAgent）
     echo ""
-    echo "   [2/4] 更新配置文件..."
+    echo "   [2/3] 更新配置文件..."
     update_openclaw_json
 
-    # 3. 安装 Skills（可选）
-    echo ""
-    echo "   [3/4] Skills 安装..."
-    install_skills
-
-    # 5. 提示重启
+    # 3. 提示重启
     echo ""
     echo -e "${SUCCESS}✓ 安装完成！${NC}"
     echo ""
@@ -419,38 +434,6 @@ EOF
         jq --argjson binding "$binding_json" '.bindings += [$binding]' "$json_file" > "tmp_$$.json" && mv "tmp_$$.json" "$json_file"
         echo "   ✓ 已添加 binding: $CHANNEL_TYPE:$account_id"
     fi
-}
-
-# ---------- 安装 Skills ----------
-install_skills() {
-    echo ""
-    echo -e "${BOLD}📦 可选 Skills 安装${NC}"
-    echo ""
-    echo "   [1] 安装 Skills 自动发现流程（推荐）"
-    echo "   [2] 跳过"
-    echo ""
-    echo -n "   请选择 > "
-    read -r
-
-    case "$REPLY" in
-        1)
-            local workspace="~/.openclaw/workspace-$AGENT_ID"
-            mkdir -p "$workspace/skills"
-            
-            # 创建 skills-auto-discovery 目录
-            mkdir -p "$workspace/skills/skills-auto-discovery"
-            
-            # 下载 SKILL.md
-            if curl -fsSL "https://raw.githubusercontent.com/delichain/Claw-Grow/main/skills/skills-auto-discovery/SKILL.md" -o "$workspace/skills/skills-auto-discovery/SKILL.md" 2>/dev/null; then
-                echo "   ✓ Skills 自动发现流程已安装"
-            else
-                echo "   ⚠️ 无法下载，跳过"
-            fi
-            ;;
-        *)
-            echo "   ✓ 跳过"
-            ;;
-    esac
 }
 
 # ---------- 主入口 ----------
