@@ -318,14 +318,21 @@ update_config() {
 main() {
     parse_args "$@"
     
-    # 无 tty 且非静默模式 → 输出结构化清单
-    if ! is_interactive && [[ "$SILENT_MODE" != "true" ]]; then
+    # 静默模式 - 优先检查环境变量
+    if [[ "$SILENT_MODE" == "true" ]]; then
+        validate_silent && execute && exit 0
+    fi
+    
+    # 如果环境变量已设置，直接执行
+    if [[ -n "$MODEL" && -n "$CHANNEL_TYPE" ]]; then
+        validate_silent && execute && exit 0
+    fi
+    
+    # 无 tty → 输出结构化清单
+    if ! is_interactive; then
         print_agent_checklist
         exit 0
     fi
-    
-    # 静默模式
-    [[ "$SILENT_MODE" == "true" ]] && validate_silent && execute && exit 0
     
     # 交互模式
     run_install
