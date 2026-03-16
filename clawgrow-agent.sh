@@ -20,6 +20,7 @@ NC='\033[0m'
 
 # ---------- 全局变量 ----------
 AUTO_MODE=false
+AGENT_MODE=false
 AGENT_ID="clawgrow"
 AGENT_NAME=""
 AGENT_EMOJI=""
@@ -37,6 +38,7 @@ parse_args() {
     while [[ $# -gt 0 ]]; do
         case $1 in
             -y|--yes) AUTO_MODE=true ;;
+            --agent-mode) AGENT_MODE=true ;;
             -h|--help) show_help; exit 0 ;;
             *) echo -e "${ERROR}未知选项: $1${NC}"; show_help; exit 1 ;;
         esac
@@ -79,6 +81,13 @@ prompt() {
     local default="$2"
     local var_name="$3"
 
+    # Agent 模式下自动使用默认值
+    if [[ "$AGENT_MODE" == "true" ]]; then
+        eval "$var_name=\$default"
+        echo "   [Agent模式] $prompt_text: $default"
+        return
+    fi
+
     echo ""
     echo -e "${BOLD}📝 $prompt_text${NC}"
     [[ -n "$default" ]] && echo "   (默认值: $default)"
@@ -98,6 +107,17 @@ prompt_choice() {
     local prompt_text="$1"
     local options_json="$2"
     local var_name="$3"
+
+    # Agent 模式下自动选择第一个选项
+    if [[ "$AGENT_MODE" == "true" ]]; then
+        local first_value
+        first_value=$(echo "$options_json" | jq -r '.[0].value')
+        local first_label
+        first_label=$(echo "$options_json" | jq -r '.[0].label')
+        eval "$var_name=\$first_value"
+        echo "   [Agent模式] $prompt_text: $first_label"
+        return
+    fi
 
     echo ""
     echo -e "${BOLD}📝 $prompt_text${NC}"
@@ -292,10 +312,14 @@ EOF
     echo "   通道: $CHANNEL_TYPE"
     echo ""
 
-    local confirm
-    echo -n "   确认安装? [Y/n] > "
-    read_reply
-    confirm=${REPLY:-y}
+    local confirm="y"
+    if [[ "$AGENT_MODE" != "true" ]]; then
+        echo -n "   确认安装? [Y/n] > "
+        read_reply
+        confirm=${REPLY:-y}
+    else
+        echo "   [Agent模式] 自动确认安装"
+    fi
 
     if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
         echo "已取消"
