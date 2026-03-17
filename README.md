@@ -21,6 +21,13 @@ curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install.sh
 
 ### 静默模式
 
+使用空格分隔变量（确保变量能传递到子进程）：
+
+```bash
+AGENT_NAME="我的Agent" AGENT_EMOJI="🦞" MODEL="minimax/MiniMax-M2.5" CHANNEL_TYPE="telegram" TELEGRAM_TOKEN="xxx" bash <(curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install.sh) --silent
+```
+
+飞书示例：
 ```bash
 AGENT_NAME="我的Agent" AGENT_EMOJI="🦞" MODEL="minimax/MiniMax-M2.5" CHANNEL_TYPE="feishu" FEISHU_ACCOUNT="myagent" FEISHU_APP_ID="cli_xxx" FEISHU_APP_SECRET="xxx" bash <(curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install.sh) --silent
 ```
@@ -47,6 +54,19 @@ AGENT_NAME="我的Agent" AGENT_EMOJI="🦞" MODEL="minimax/MiniMax-M2.5" CHANNEL
 | signal | SIGNAL_PHONE, SIGNAL_TOKEN |
 | line | LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, LINE_TOKEN |
 
+### 支持的模型
+
+| 编号 | 模型 ID |
+|------|---------|
+| 1 | minimax/MiniMax-M2.5 |
+| 2 | minimax/MiniMax-M2.5-highspeed |
+| 3 | anthropic/claude-sonnet-4-6 |
+| 4 | openai/gpt-5.4 |
+| 5 | moonshot/kimi-k2.5 |
+| 6 | ollama/qwen2.5:14b |
+| 7 | ollama/deepseek-r1:32b |
+| 8 | custom |
+
 ## Agent 模式
 
 当脚本检测到非交互模式时，会输出结构化清单供其他 Agent 调用：
@@ -55,6 +75,10 @@ AGENT_NAME="我的Agent" AGENT_EMOJI="🦞" MODEL="minimax/MiniMax-M2.5" CHANNEL
 CLAW_GROW_INSTALL_REQUIRED=true
 
 请按以下步骤向用户收集信息：
+
+步骤 1：基本信息
+步骤 2：模型选择
+步骤 3：通道选择
 ...
 ```
 
