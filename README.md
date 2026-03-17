@@ -16,7 +16,7 @@ OpenClaw Agent 一键安装向导
 ### 交互模式
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/clawgrow-agent.sh | bash
 ```
 
 ### 静默模式
