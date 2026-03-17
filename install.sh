@@ -301,6 +301,12 @@ execute() {
     if [[ "$CHANNEL_TYPE" != "skip" ]]; then
         case "$CHANNEL_TYPE" in
             feishu) cmd="$cmd --bind feishu:$FEISHU_ACCOUNT" ;;
+            telegram) cmd="$cmd --bind telegram:$TELEGRAM_TOKEN" ;;
+            discord) cmd="$cmd --bind discord:$DISCORD_TOKEN" ;;
+            slack) cmd="$cmd --bind slack:$SLACK_TOKEN" ;;
+            whatsapp) cmd="$cmd --bind whatsapp:$WHATSAPP_PHONE" ;;
+            signal) cmd="$cmd --bind signal:$SIGNAL_PHONE" ;;
+            line) cmd="$cmd --bind line:$LINE_CHANNEL_ID" ;;
             *) cmd="$cmd --bind $CHANNEL_TYPE" ;;
         esac
     fi
