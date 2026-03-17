@@ -16,13 +16,30 @@ readonly WARN='\033[38;2;255;176;32m'
 readonly NC='\033[0m'
 
 # ---------- 全局变量 ----------
-AGENT_ID="clawgrow"
-AGENT_NAME="龙虾成长"
-AGENT_EMOJI="🦞"
-MODEL=""
-CHANNEL_TYPE=""
+# 优先使用环境变量，否则使用默认值
+AGENT_ID="${AGENT_ID:-clawgrow}"
+AGENT_NAME="${AGENT_NAME:-龙虾成长}"
+AGENT_EMOJI="${AGENT_EMOJI:-🦞}"
+MODEL="${MODEL:-}"
+CHANNEL_TYPE="${CHANNEL_TYPE:-}"
 SILENT_MODE=false
+DEPLOY_FROM_GITHUB=true
 AUTO_CONFIRM=false
+
+# 通道配置（支持多通道）
+FEISHU_ACCOUNT="${FEISHU_ACCOUNT:-}"
+FEISHU_APP_ID="${FEISHU_APP_ID:-}"
+FEISHU_APP_SECRET="${FEISHU_APP_SECRET:-}"
+TELEGRAM_TOKEN="${TELEGRAM_TOKEN:-}"
+DISCORD_TOKEN="${DISCORD_TOKEN:-}"
+SLACK_TOKEN="${SLACK_TOKEN:-}"
+WHATSAPP_PHONE="${WHATSAPP_PHONE:-}"
+WHATSAPP_TOKEN="${WHATSAPP_TOKEN:-}"
+SIGNAL_PHONE="${SIGNAL_PHONE:-}"
+SIGNAL_TOKEN="${SIGNAL_TOKEN:-}"
+LINE_CHANNEL_ID="${LINE_CHANNEL_ID:-}"
+LINE_CHANNEL_SECRET="${LINE_CHANNEL_SECRET:-}"
+LINE_TOKEN="${LINE_TOKEN:-}"
 
 # ---------- tty 检测 ----------
 is_interactive() {
@@ -106,16 +123,9 @@ CHANNEL_OPTIONS:
   5=skip
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-收集完成后执行安装命令：
+收集完成后执行安装命令（单行格式）：
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AGENT_NAME="${AGENT_NAME}" \
-AGENT_EMOJI="${AGENT_EMOJI}" \
-MODEL="${MODEL}" \
-CHANNEL_TYPE="${CHANNEL_TYPE}" \
-FEISHU_ACCOUNT="${FEISHU_ACCOUNT}" \
-FEISHU_APP_ID="${FEISHU_APP_ID}" \
-FEISHU_APP_SECRET="${FEISHU_APP_SECRET}" \
-bash <(curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install.sh) --silent
+AGENT_NAME="${AGENT_NAME:-龙虾成长}"; AGENT_EMOJI="${AGENT_EMOJI:-🦞}"; MODEL="${MODEL:-}"; CHANNEL_TYPE="${CHANNEL_TYPE:-}"; FEISHU_ACCOUNT="${FEISHU_ACCOUNT:-}"; FEISHU_APP_ID="${FEISHU_APP_ID:-}"; FEISHU_APP_SECRET="${FEISHU_APP_SECRET:-}"; TELEGRAM_TOKEN="${TELEGRAM_TOKEN:-}"; DISCORD_TOKEN="${DISCORD_TOKEN:-}"; bash <(curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install.sh) --silent
 
 ================================================================================
 CHECKLIST
@@ -137,6 +147,20 @@ validate_silent() {
             ;;
         telegram) [[ -z "$TELEGRAM_TOKEN" ]] && missing+=("TELEGRAM_TOKEN") ;;
         discord) [[ -z "$DISCORD_TOKEN" ]] && missing+=("DISCORD_TOKEN") ;;
+        slack) [[ -z "$SLACK_TOKEN" ]] && missing+=("SLACK_TOKEN") ;;
+        whatsapp)
+            [[ -z "$WHATSAPP_PHONE" ]] && missing+=("WHATSAPP_PHONE")
+            [[ -z "$WHATSAPP_TOKEN" ]] && missing+=("WHATSAPP_TOKEN")
+            ;;
+        signal)
+            [[ -z "$SIGNAL_PHONE" ]] && missing+=("SIGNAL_PHONE")
+            [[ -z "$SIGNAL_TOKEN" ]] && missing+=("SIGNAL_TOKEN")
+            ;;
+        line)
+            [[ -z "$LINE_CHANNEL_ID" ]] && missing+=("LINE_CHANNEL_ID")
+            [[ -z "$LINE_CHANNEL_SECRET" ]] && missing+=("LINE_CHANNEL_SECRET")
+            [[ -z "$LINE_TOKEN" ]] && missing+=("LINE_TOKEN")
+            ;;
     esac
     
     if [[ ${#missing[@]} -gt 0 ]]; then
@@ -293,6 +317,11 @@ execute() {
     echo "   [2/2] 更新配置..."
     update_config
 
+    # 3. 从 GitHub 部署
+    if [[ "$DEPLOY_FROM_GITHUB" == "true" ]]; then
+        deploy_from_github
+    fi
+
     echo ""
     echo -e "${SUCCESS}✓ 安装完成！${NC}"
     echo ""
@@ -339,3 +368,91 @@ main() {
 }
 
 main "$@"
+
+# ---------- 从 GitHub 下载并部署 ----------
+deploy_from_github() {
+    local repo_url="https://github.com/delichain/Claw-Grow"
+    local tmp_dir=$(mktemp -d)
+    local workspace="$HOME/.openclaw/workspace-$AGENT_ID"
+    
+    echo ""
+    echo "   [3/4] 下载 GitHub 仓库..."
+    
+    # 使用 curl 下载
+    local tarball="$tmp_dir/repo.tar.gz"
+    curl -fsSL "$repo_url/archive/refs/heads/main.tar.gz" -o "$tarball" 2>/dev/null || {
+        echo -e "   ${WARN}⚠️ 下载失败，跳过部署${NC}"
+        rm -rf "$tmp_dir"
+        return 0
+    }
+    
+    tar -xzf "$tarball" -C "$tmp_dir" 2>/dev/null
+    local repo_dir="$tmp_dir/Claw-Grow-main"
+    
+    if [[ ! -d "$repo_dir" ]]; then
+        echo -e "   ${WARN}⚠️ 仓库目录不存在，跳过${NC}"
+        rm -rf "$tmp_dir"
+        return 0
+    fi
+    
+    echo "   ✓ 仓库下载成功"
+    
+    # 创建 workspace 目录
+    mkdir -p "$workspace"
+    
+    # 复制身份文件
+    echo ""
+    echo "   [4/4] 复制配置文件..."
+    
+    local files=("AGENTS.md" "SOUL.md" "TOOLS.md" "USER.md")
+    for f in "${files[@]}"; do
+        if [[ -f "$repo_dir/$f" ]]; then
+            sed -e "s/\${AGENT_ID}/$AGENT_ID/g" \
+                -e "s/\${AGENT_NAME}/$AGENT_NAME/g" \
+                -e "s/\${AGENT_EMOJI}/$AGENT_EMOJI/g" \
+                "$repo_dir/$f" > "$workspace/$f" 2>/dev/null
+            echo "   ✓ $f"
+        fi
+    done
+    
+    # 复制 skills 目录
+    if [[ -d "$repo_dir/skills" ]]; then
+        mkdir -p "$workspace/skills"
+        cp -r "$repo_dir/skills/"* "$workspace/skills/" 2>/dev/null || true
+        echo "   ✓ skills/"
+    fi
+    
+    # 添加到 agents.list
+    add_agent_to_json
+    
+    # 清理
+    rm -rf "$tmp_dir"
+    echo -e "   ${SUCCESS}✓ 部署完成！${NC}"
+}
+
+add_agent_to_json() {
+    local json="$HOME/.openclaw/openclaw.json"
+    [[ ! -f "$json" ]] && return
+    
+    local agent_json=$(cat << AGENTEOF
+{
+  "id": "$AGENT_ID",
+  "name": "$AGENT_NAME $AGENT_EMOJI",
+  "workspace": "$HOME/.openclaw/workspace-$AGENT_ID",
+  "agentDir": "$HOME/.openclaw/agents/$AGENT_ID/agent",
+  "model": "$MODEL",
+  "tools": {
+    "profile": "full"
+  }
+}
+AGENTEOF
+    )
+    
+    # 检查是否已存在
+    if jq -e --arg id "$AGENT_ID" '.agents.list[] | select(.id == $id)' "$json" >/dev/null 2>&1; then
+        echo "   ⚠️ Agent 已存在"
+    else
+        jq --arg agent "$agent_json" '.agents.list += [$agent | fromjson]' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
+        echo "   ✓ 已添加到 agents.list"
+    fi
+}
