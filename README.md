@@ -12,7 +12,7 @@ OpenClaw Agent 一键安装向导
 
 ## 快速开始
 
-### 交互模式
+### 终端模式
 
 ```
 curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/clawgrow-agent.sh -o clawgrow-agent.sh
