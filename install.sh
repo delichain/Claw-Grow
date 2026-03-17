@@ -289,91 +289,6 @@ run_install() {
     execute
 }
 
-# ---------- 执行安装 ----------
-execute() {
-    echo ""
-    echo -e "${BOLD}🔧 开始安装...${NC}"
-    echo ""
-
-    echo "   [1/2] 创建 Agent..."
-    local cmd="openclaw agents add $AGENT_ID --workspace ~/.openclaw/workspace-$AGENT_ID --model $MODEL --non-interactive"
-    
-    if [[ "$CHANNEL_TYPE" != "skip" ]]; then
-        case "$CHANNEL_TYPE" in
-            feishu) cmd="$cmd --bind feishu:$FEISHU_ACCOUNT" ;;
-            telegram) cmd="$cmd --bind telegram:$TELEGRAM_TOKEN" ;;
-            discord) cmd="$cmd --bind discord:$DISCORD_TOKEN" ;;
-            slack) cmd="$cmd --bind slack:$SLACK_TOKEN" ;;
-            whatsapp) cmd="$cmd --bind whatsapp:$WHATSAPP_PHONE" ;;
-            signal) cmd="$cmd --bind signal:$SIGNAL_PHONE" ;;
-            line) cmd="$cmd --bind line:$LINE_CHANNEL_ID" ;;
-            *) cmd="$cmd --bind $CHANNEL_TYPE" ;;
-        esac
-    fi
-
-    echo "   $cmd"
-    eval $cmd 2>/dev/null || {
-        cmd="openclaw agents add $AGENT_ID --workspace ~/.openclaw/workspace-$AGENT_ID --model $MODEL --non-interactive"
-        eval $cmd || { echo -e "${ERROR}❌ 创建失败${NC}"; exit 1; }
-    }
-    echo "   ✓ Agent 创建成功"
-
-    # 更新配置
-    echo ""
-    echo "   [2/2] 更新配置..."
-    update_config
-
-    # 3. 从 GitHub 部署
-    if [[ "$DEPLOY_FROM_GITHUB" == "true" ]]; then
-        deploy_from_github
-    fi
-
-    echo ""
-    echo -e "${SUCCESS}✓ 安装完成！${NC}"
-    echo ""
-    echo "运行: openclaw gateway restart"
-}
-
-update_config() {
-    local json="$HOME/.openclaw/openclaw.json"
-    [[ ! -f "$json" ]] && return
-    
-    if ! jq -e --arg a "$AGENT_ID" '.tools.agentToAgent.allow | index($a)' "$json" >/dev/null 2>&1; then
-        jq --arg a "$AGENT_ID" '.tools.agentToAgent.allow += [$a]' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
-    fi
-    
-    if [[ "$CHANNEL_TYPE" != "skip" ]]; then
-        local account="${FEISHU_ACCOUNT:-$AGENT_ID}"
-        local bind="{\"agentId\":\"$AGENT_ID\",\"match\":{\"channel\":\"$CHANNEL_TYPE\",\"accountId\":\"$account\"}}"
-        jq --argjson b "$bind" '.bindings += [$b]' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
-    fi
-}
-
-# ---------- 主入口 ----------
-main() {
-    parse_args "$@"
-    
-    # 静默模式 - 优先检查环境变量
-    if [[ "$SILENT_MODE" == "true" ]]; then
-        validate_silent && execute && exit 0
-    fi
-    
-    # 如果环境变量已设置，直接执行
-    if [[ -n "$MODEL" && -n "$CHANNEL_TYPE" ]]; then
-        validate_silent && execute && exit 0
-    fi
-    
-    # 无 tty → 输出结构化清单
-    if ! is_interactive; then
-        print_agent_checklist
-        exit 0
-    fi
-    
-    # 交互模式
-    run_install
-}
-
-main "$@"
 
 # ---------- 从 GitHub 下载并部署 ----------
 deploy_from_github() {
@@ -450,15 +365,89 @@ add_agent_to_json() {
   "tools": {
     "profile": "full"
   }
-}
-AGENTEOF
-    )
+# ---------- 执行安装 ----------
+execute() {
+    echo ""
+    echo -e "${BOLD}🔧 开始安装...${NC}"
+    echo ""
+
+    echo "   [1/2] 创建 Agent..."
+    local cmd="openclaw agents add $AGENT_ID --workspace ~/.openclaw/workspace-$AGENT_ID --model $MODEL --non-interactive"
     
-    # 检查是否已存在
-    if jq -e --arg id "$AGENT_ID" '.agents.list[] | select(.id == $id)' "$json" >/dev/null 2>&1; then
-        echo "   ⚠️ Agent 已存在"
-    else
-        jq --arg agent "$agent_json" '.agents.list += [$agent | fromjson]' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
-        echo "   ✓ 已添加到 agents.list"
+    if [[ "$CHANNEL_TYPE" != "skip" ]]; then
+        case "$CHANNEL_TYPE" in
+            feishu) cmd="$cmd --bind feishu:$FEISHU_ACCOUNT" ;;
+            telegram) cmd="$cmd --bind telegram:$TELEGRAM_TOKEN" ;;
+            discord) cmd="$cmd --bind discord:$DISCORD_TOKEN" ;;
+            slack) cmd="$cmd --bind slack:$SLACK_TOKEN" ;;
+            whatsapp) cmd="$cmd --bind whatsapp:$WHATSAPP_PHONE" ;;
+            signal) cmd="$cmd --bind signal:$SIGNAL_PHONE" ;;
+            line) cmd="$cmd --bind line:$LINE_CHANNEL_ID" ;;
+            *) cmd="$cmd --bind $CHANNEL_TYPE" ;;
+        esac
+    fi
+
+    echo "   $cmd"
+    eval $cmd 2>/dev/null || {
+        cmd="openclaw agents add $AGENT_ID --workspace ~/.openclaw/workspace-$AGENT_ID --model $MODEL --non-interactive"
+        eval $cmd || { echo -e "${ERROR}❌ 创建失败${NC}"; exit 1; }
+    }
+    echo "   ✓ Agent 创建成功"
+
+    # 更新配置
+    echo ""
+    echo "   [2/2] 更新配置..."
+    update_config
+
+    # 3. 从 GitHub 部署
+    if [[ "$DEPLOY_FROM_GITHUB" == "true" ]]; then
+        deploy_from_github
+    fi
+
+    echo ""
+    echo -e "${SUCCESS}✓ 安装完成！${NC}"
+    echo ""
+    echo "运行: openclaw gateway restart"
+}
+
+update_config() {
+    local json="$HOME/.openclaw/openclaw.json"
+    [[ ! -f "$json" ]] && return
+    
+    if ! jq -e --arg a "$AGENT_ID" '.tools.agentToAgent.allow | index($a)' "$json" >/dev/null 2>&1; then
+        jq --arg a "$AGENT_ID" '.tools.agentToAgent.allow += [$a]' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
+    fi
+    
+    if [[ "$CHANNEL_TYPE" != "skip" ]]; then
+        local account="${FEISHU_ACCOUNT:-$AGENT_ID}"
+        local bind="{\"agentId\":\"$AGENT_ID\",\"match\":{\"channel\":\"$CHANNEL_TYPE\",\"accountId\":\"$account\"}}"
+        jq --argjson b "$bind" '.bindings += [$b]' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
     fi
 }
+
+
+# ---------- 主入口 ----------
+main() {
+    parse_args "$@"
+    
+    # 静默模式 - 优先检查环境变量
+    if [[ "$SILENT_MODE" == "true" ]]; then
+        validate_silent && execute && exit 0
+    fi
+    
+    # 如果环境变量已设置，直接执行
+    if [[ -n "$MODEL" && -n "$CHANNEL_TYPE" ]]; then
+        validate_silent && execute && exit 0
+    fi
+    
+    # 无 tty → 输出结构化清单
+    if ! is_interactive; then
+        print_agent_checklist
+        exit 0
+    fi
+    
+    # 交互模式
+    run_install
+}
+
+main "$@"
