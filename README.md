@@ -32,6 +32,21 @@ AGENT_NAME="我的Agent" AGENT_EMOJI="🦞" MODEL="minimax/MiniMax-M2.5" CHANNEL
 AGENT_NAME="我的Agent" AGENT_EMOJI="🦞" MODEL="minimax/MiniMax-M2.5" CHANNEL_TYPE="feishu" FEISHU_ACCOUNT="myagent" FEISHU_APP_ID="cli_xxx" FEISHU_APP_SECRET="xxx" bash <(curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install.sh) --silent
 ```
 
+Discord 示例：
+```bash
+AGENT_NAME="我的Agent" AGENT_EMOJI="🤖" MODEL="anthropic/claude-sonnet-4-6" CHANNEL_TYPE="discord" DISCORD_TOKEN="xxx" bash <(curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install.sh) --silent
+```
+
+Slack 示例：
+```bash
+AGENT_NAME="我的Agent" AGENT_EMOJI="💼" MODEL="openai/gpt-5.4" CHANNEL_TYPE="slack" SLACK_TOKEN="xoxb-xxx" bash <(curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install.sh) --silent
+```
+
+跳过通道配置：
+```bash
+AGENT_NAME="我的Agent" AGENT_EMOJI="🦞" MODEL="minimax/MiniMax-M2.5" CHANNEL_TYPE="skip" bash <(curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/install.sh) --silent
+```
+
 ## 环境变量
 
 | 变量 | 描述 | 默认值 |
@@ -39,20 +54,22 @@ AGENT_NAME="我的Agent" AGENT_EMOJI="🦞" MODEL="minimax/MiniMax-M2.5" CHANNEL
 | AGENT_ID | Agent ID | clawgrow |
 | AGENT_NAME | 显示名称 | 龙虾成长 |
 | AGENT_EMOJI | Emoji | 🦞 |
-| MODEL | 模型 ID | - |
-| CHANNEL_TYPE | 通道类型 | - |
+| MODEL | 模型 ID（必需） | - |
+| CHANNEL_TYPE | 通道类型（必需） | - |
+| DEPLOY_FROM_GITHUB | 是否从 GitHub 部署配置和 Skills | true |
 
 ### 通道配置
 
-| 通道 | 必需变量 |
-|------|----------|
-| feishu | FEISHU_ACCOUNT, FEISHU_APP_ID, FEISHU_APP_SECRET |
-| telegram | TELEGRAM_TOKEN |
-| discord | DISCORD_TOKEN |
-| slack | SLACK_TOKEN |
-| whatsapp | WHATSAPP_PHONE, WHATSAPP_TOKEN |
-| signal | SIGNAL_PHONE, SIGNAL_TOKEN |
-| line | LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, LINE_TOKEN |
+| 通道 | 必需变量 | 说明 |
+|------|----------|------|
+| feishu | FEISHU_ACCOUNT, FEISHU_APP_ID, FEISHU_APP_SECRET | 飞书 Bot |
+| telegram | TELEGRAM_TOKEN | Telegram Bot Token |
+| discord | DISCORD_TOKEN | Discord Bot Token |
+| slack | SLACK_TOKEN | Slack Bot Token |
+| whatsapp | WHATSAPP_PHONE, WHATSAPP_TOKEN | WhatsApp Business |
+| signal | SIGNAL_PHONE, SIGNAL_TOKEN | Signal |
+| line | LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, LINE_TOKEN | LINE Messaging API |
+| skip | - | 不配置通道 |
 
 ### 支持的模型
 
