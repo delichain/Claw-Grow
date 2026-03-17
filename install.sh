@@ -354,7 +354,13 @@ deploy_from_github() {
 add_agent_to_json() {
     local json="$HOME/.openclaw/openclaw.json"
     [[ ! -f "$json" ]] && return
-    
+
+    # 检查是否已存在该 agent
+    if jq -e --arg a "$AGENT_ID" '.agents.list[] | select(.id == $a)' "$json" >/dev/null 2>&1; then
+        echo "   ✓ Agent $AGENT_ID 已存在，跳过添加"
+        return 0
+    fi
+
     local agent_json=$(cat << AGENTEOF
 {
   "id": "$AGENT_ID",
@@ -364,18 +370,16 @@ add_agent_to_json() {
   "model": "$MODEL",
   "tools": {
     "profile": "full"
+  },
+  "identity": {
+    "name": "$AGENT_NAME",
+    "emoji": "$AGENT_EMOJI"
   }
 }
 AGENTEOF
-    )
-    
-    # 检查是否已存在
-    if jq -e --arg id "$AGENT_ID" '.agents.list[] | select(.id == $id)' "$json" >/dev/null 2>&1; then
-        echo "   ⚠️ Agent 已存在"
-    else
-        jq --arg agent "$agent_json" '.agents.list += [$agent | fromjson]' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
-        echo "   ✓ 已添加到 agents.list"
-    fi
+)
+    jq --argjson a "$agent_json" '.agents.list += [$a]' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
+    echo "   ✓ agents.list 中已添加 $AGENT_ID"
 }
 
 # ---------- 执行安装 ----------
@@ -423,18 +427,58 @@ execute() {
     echo "运行: openclaw gateway restart"
 }
 
+# ---------- 更新配置 ----------
 update_config() {
     local json="$HOME/.openclaw/openclaw.json"
     [[ ! -f "$json" ]] && return
-    
+
+    # 1. 更新 agentToAgent.allow
     if ! jq -e --arg a "$AGENT_ID" '.tools.agentToAgent.allow | index($a)' "$json" >/dev/null 2>&1; then
         jq --arg a "$AGENT_ID" '.tools.agentToAgent.allow += [$a]' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
     fi
-    
+
+    # 2. 更新 bindings
     if [[ "$CHANNEL_TYPE" != "skip" ]]; then
         local account="${FEISHU_ACCOUNT:-$AGENT_ID}"
         local bind="{\"agentId\":\"$AGENT_ID\",\"match\":{\"channel\":\"$CHANNEL_TYPE\",\"accountId\":\"$account\"}}"
         jq --argjson b "$bind" '.bindings += [$b]' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
+    fi
+
+    # 3. 更新 channels.feishu.accounts (飞书) - 官方文档结构
+    if [[ "$CHANNEL_TYPE" == "feishu" ]]; then
+        local account="${FEISHU_ACCOUNT:-$AGENT_ID}"
+        local account_config=$(cat << ACCOUNTCONFIG
+{
+  "appId": "$FEISHU_APP_ID",
+  "appSecret": "$FEISHU_APP_SECRET"
+}
+ACCOUNTCONFIG
+)
+        # 检查 channels.feishu 是否存在
+        if jq -e '.channels.feishu' "$json" >/dev/null 2>&1; then
+            # 检查 accounts 部分是否存在
+            if jq -e '.channels.feishu.accounts' "$json" >/dev/null 2>&1; then
+                # accounts 部分已存在，添加新账号
+                jq --arg a "$account" --argjson c "$account_config" '.channels.feishu.accounts[$a] = $c' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
+            else
+                # 创建 accounts 部分
+                jq --arg a "$account" --argjson c "$account_config" '.channels.feishu.accounts = {($a): $c}' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
+            fi
+            echo "   ✓ channels.feishu.accounts.$account 已更新"
+        fi
+
+        # 4. 确保 channels.feishu 必要的字段
+        if jq -e '.channels.feishu.enabled' "$json" >/dev/null 2>&1; then
+            : # already exists
+        else
+            jq '.channels.feishu.enabled = true' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
+        fi
+
+        if jq -e '.channels.feishu.connectionMode' "$json" >/dev/null 2>&1; then
+            : # already exists
+        else
+            jq '.channels.feishu.connectionMode = "websocket"' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
+        fi
     fi
 }
 
