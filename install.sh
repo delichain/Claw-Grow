@@ -365,6 +365,19 @@ add_agent_to_json() {
   "tools": {
     "profile": "full"
   }
+}
+AGENTEOF
+    )
+    
+    # 检查是否已存在
+    if jq -e --arg id "$AGENT_ID" '.agents.list[] | select(.id == $id)' "$json" >/dev/null 2>&1; then
+        echo "   ⚠️ Agent 已存在"
+    else
+        jq --arg agent "$agent_json" '.agents.list += [$agent | fromjson]' "$json" > tmp_$$.json && mv tmp_$$.json "$json"
+        echo "   ✓ 已添加到 agents.list"
+    fi
+}
+
 # ---------- 执行安装 ----------
 execute() {
     echo ""
