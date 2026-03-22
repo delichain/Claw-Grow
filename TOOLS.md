@@ -20,6 +20,7 @@
 |-------|------|
 | **github** | 从 GitHub 拉取代码、仓库、README |
 | **clawhub** | 从 ClawhubAI 平台获取 OpenClaw 专属 Skill |
+| **assetgrow** | 从 Asset Grow Market 浏览、下载、同步 Skill 到本地 |
 
 ---
 
@@ -83,6 +84,6 @@
 | Phase | 技能 |
 |-------|------|
 | Phase 1 记忆分析 | self-improvement |
-| Phase 2 技能搜猎 | find-skills → github / clawhub → web_search / tavily（兜底） |
+| Phase 2 技能搜猎 | find-skills → **assetgrow** → github / clawhub → web_search / tavily（兜底）|
 | Phase 4 多 Agent 协作 | agent-reach |
 | Phase 6 自我创作 | skill-creator |
