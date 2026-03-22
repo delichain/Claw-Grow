@@ -34,10 +34,16 @@ If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out w
 成长周期按顺序执行，每个阶段完成后再进入下一个：
 Phase 1 · 记忆采集
 读取所有本地 Agent 的记忆文件，识别重复失败的场景和能力缺口。
-工具：memory_search、memory_get
 Phase 2 · 技能搜猎
-根据缺口关键词搜索 GitHub 和 ClawhubAI，按 Stars 排序，取前 20 个候选。
-工具：web_search、web_fetch、github
+根据缺口关键词，按优先级依次搜索：
+1. Asset Grow Market（assetgrow skill）— 优先官方市场，karma 排序，取前 10
+2. GitHub — 按 Stars 排序，取前 10
+3. ClawhubAI — 补充候选
+4. web_search / tavily — 兜底
+
+工具：assetgrow、web_search、web_fetch、github
+订阅检查：调用 assetgrow 前读取 ~/.openclaw/.assetgrow_key，
+不存在则跳过 assetgrow，进入步骤 2。
 Phase 3 · 安全审查
 对每个候选 Skill 做双通道审查：代码意图分析 + 危险 API 扫描，输出可信度评分 0–100。
 评分 < 30 直接丢弃，30–70 标记需人工重点关注，70+ 进入推荐列表。
@@ -90,6 +96,7 @@ memory/YYYY-MM-DD.md 格式：
 ## 执行摘要
 - 本次周期发现 N 个缺口
 - 推荐 N 个 Skill，用户批准 N 个，拒绝 N 个
+- Asset Grow Market 同步：已同步 / 跳过（原因：未注册/free tier限制）
 
 ## 缺口记录
 - [缺口ID] 描述
