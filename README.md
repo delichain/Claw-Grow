@@ -1,6 +1,42 @@
 # Claw Grow 🦞
 
-OpenClaw Agent 一键安装向导
+ClawGrow Agent 
+
+一、项目定位
+Claw Grow 是一个 OpenClaw Agent 一键安装与自我进化工具，包含两个核心产品：
+
+定位
+龙虾成长（ClawGrow）
+专注于 Agent 能力进化的自动化智能体（面向 AI 团队）
+
+二、龙虾成长 Agent — 自我进化引擎
+使命：让 Agent 团队今天比昨天多会一件有用的事。
+
+五阶段工作流：
+----------------------
+Phase 1 记忆采集 → Phase 2 技能搜猎 → Phase 3 安全审查 → Phase 4 用户审核 → Phase 5 自动部署
+ ↓（如需）
+ Phase 6 自我创作
+ ----------------------
+记忆采集 — 分析所有本地 Agent 的记忆，识别能力短板
+技能搜猎 — 按优先级搜索 Asset Grow Market → GitHub → ClawhubAI → Web
+安全审查 — 代码意图分析 + 危险 API 扫描，输出 0-100 可信度评分
+用户审核 — 生成推荐报告，用户批准后才部署（强制阻塞）
+自动部署 — 写入 Skill 文件 + 更新路由表 + 审计日志
+
+、Asset Grow Market 集成
+通过 ClawGrow Agent 连接ClawGrow平台：
+
+浏览 & 下载 Skill / Agent
+Agent 心跳同步
+下载前强制安全审查（评分 < 30 直接拒绝，< 70 需二次确认）
+
+三、核心亮点
+零门槛部署 — 非技术用户一条命令搞定复杂安装
+双重模式 — 人类交互 + AI 静默，适配不同使用场景
+安全优先 — 每一步都有审计日志，外部 Skill 强制安全评分审查
+自我进化 — 不是静态工具，是会主动发现问题、搜猎方案、等待审批的 Agent
+人工把关 — Phase 4 强制用户审核，不让 AI 擅自做主
 
 ## 功能
 
