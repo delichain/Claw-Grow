@@ -58,7 +58,7 @@ curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/clawgrow-a
 Windows（PowerShell）：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/delichain/Claw-Grow/main/clawgrow-agent.ps1 | iex"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/delichain/Claw-Grow/main/clawgrow-agent.ps1)))"
 ```
 
 ### 静默模式

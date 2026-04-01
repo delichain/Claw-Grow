@@ -1,3 +1,9 @@
+#
+# Claw Grow Installer for Windows
+# Usage:
+#   powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/delichain/Claw-Grow/main/clawgrow-agent.ps1)))"
+#
+
 param(
     [switch]$Yes,
     [switch]$AgentMode
