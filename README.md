@@ -55,6 +55,12 @@ Agent 心跳同步
 curl -fsSL https://raw.githubusercontent.com/delichain/Claw-Grow/main/clawgrow-agent.sh | bash
 ```
 
+Windows（PowerShell）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/delichain/Claw-Grow/main/clawgrow-agent.ps1 | iex"
+```
+
 ### 静默模式
 
 使用空格分隔变量（确保变量能传递到子进程）：
