@@ -1,10 +1,10 @@
-Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
-
 param(
     [switch]$Yes,
     [switch]$AgentMode
 )
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
 
 function Exit-WithMessage {
     param([string]$Message)
